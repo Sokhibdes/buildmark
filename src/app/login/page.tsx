@@ -21,15 +21,17 @@ export default function LoginPage() {
         headers: {
           'Content-Type': 'application/json',
           'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
         },
         body: JSON.stringify({ email, password }),
       }
     )
 
     const data = await res.json()
+    console.log('Response:', data)
 
     if (!res.ok || data.error) {
-      setError("Email yoki parol noto'g'ri")
+      setError(data.error_description || data.message || "Email yoki parol noto'g'ri")
       setLoading(false)
       return
     }
