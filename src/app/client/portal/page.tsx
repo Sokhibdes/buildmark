@@ -1,0 +1,357 @@
+'use client'
+// src/app/client/portal/page.tsx
+// Mijoz portali — mijoz bu sahifani ko'radi
+
+import { useState, useEffect } from 'react'
+import { useSearchParams } from 'next/navigation'
+import { CheckCircle, XCircle, Clock, TrendingUp, FileText, Megaphone, Instagram, Send } from 'lucide-react'
+import { getClientByToken, getClientPortalData, approveContent } from '@/lib/queries'
+import type { Client, ContentItem, Campaign, MonthlyReport } from '@/types'
+import p from './portal.module.css'
+
+type Tab = 'overview' | 'content' | 'campaigns' | 'reports'
+
+export default function ClientPortalPage() {
+  const searchParams = useSearchParams()
+  const token = searchParams.get('token')
+
+  const [client, setClient] = useState<Client | null>(null)
+  const [content, setContent] = useState<ContentItem[]>([])
+  const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [reports, setReports] = useState<MonthlyReport[]>([])
+  const [pending, setPending] = useState<ContentItem[]>([])
+  const [tab, setTab] = useState<Tab>('overview')
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [approving, setApproving] = useState<string | null>(null)
+  const [feedback, setFeedback] = useState('')
+
+  useEffect(() => {
+    if (!token) { setError('Token topilmadi'); setLoading(false); return }
+
+    getClientByToken(token).then(async clientData => {
+      if (!clientData) { setError('Kirish huquqi yo\'q yoki muddati tugagan'); setLoading(false); return }
+      setClient(clientData)
+      const data = await getClientPortalData(clientData.id)
+      setContent(data.content_items)
+      setCampaigns(data.campaigns)
+      setReports(data.reports)
+      setPending(data.pending_approvals)
+      setLoading(false)
+    })
+  }, [token])
+
+  const handleApprove = async (id: string, approved: boolean) => {
+    setApproving(id)
+    await approveContent(id, approved, feedback)
+    setPending(prev => prev.filter(c => c.id !== id))
+    setContent(prev => prev.map(c => c.id === id ? { ...c, status: approved ? 'approved' : 'rejected', client_approved: approved } : c))
+    setApproving(null)
+    setFeedback('')
+  }
+
+  if (loading) return (
+    <div className={p.loading}>
+      <div className={p.loadingSpinner}></div>
+      <div>Yuklanmoqda...</div>
+    </div>
+  )
+
+  if (error) return (
+    <div className={p.errorPage}>
+      <div className={p.errorIcon}>🔒</div>
+      <div className={p.errorTitle}>Kirish mumkin emas</div>
+      <div className={p.errorText}>{error}</div>
+    </div>
+  )
+
+  if (!client) return null
+
+  const initials = client.company_name.slice(0, 2).toUpperCase()
+
+  return (
+    <div className={p.portal}>
+      {/* Header */}
+      <header className={p.header}>
+        <div className={p.headerInner}>
+          <div className={p.headerLeft}>
+            <div className={p.clientAvatar}>{initials}</div>
+            <div>
+              <div className={p.clientName}>{client.company_name}</div>
+              <div className={p.clientSub}>BuildMark — Mijoz portali</div>
+            </div>
+          </div>
+          <div className={p.headerRight}>
+            {pending.length > 0 && (
+              <div className={p.pendingBadge}>
+                {pending.length} ta tasdiqlash kutmoqda
+              </div>
+            )}
+            <div className={p.headerLinks}>
+              {client.instagram_url && (
+                <a href={client.instagram_url} target="_blank" rel="noreferrer" className={p.socialLink}>
+                  <Instagram size={16} />
+                </a>
+              )}
+              {client.telegram_url && (
+                <a href={client.telegram_url} target="_blank" rel="noreferrer" className={p.socialLink}>
+                  <Send size={16} />
+                </a>
+              )}
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Tabs */}
+      <div className={p.tabs}>
+        {(['overview', 'content', 'campaigns', 'reports'] as Tab[]).map(t => (
+          <button
+            key={t}
+            className={`${p.tab} ${tab === t ? p.tabActive : ''}`}
+            onClick={() => setTab(t)}
+          >
+            {t === 'overview' ? 'Umumiy' :
+             t === 'content' ? `Kontentlar (${content.length})` :
+             t === 'campaigns' ? `Kampaniyalar (${campaigns.length})` :
+             `Hisobotlar (${reports.length})`}
+          </button>
+        ))}
+      </div>
+
+      <div className={p.body}>
+
+        {/* OVERVIEW */}
+        {tab === 'overview' && (
+          <div>
+            {/* Stats */}
+            <div className={p.statsRow}>
+              <div className={p.statCard}>
+                <div className={p.statNum}>{content.filter(c => c.status === 'published').length}</div>
+                <div className={p.statLabel}>Nashr qilingan</div>
+              </div>
+              <div className={p.statCard}>
+                <div className={p.statNum} style={{ color: '#854f0b' }}>{pending.length}</div>
+                <div className={p.statLabel}>Tasdiqlash kutmoqda</div>
+              </div>
+              <div className={p.statCard}>
+                <div className={p.statNum} style={{ color: '#0f6e56' }}>{campaigns.filter(c => c.status === 'active').length}</div>
+                <div className={p.statLabel}>Aktiv kampaniyalar</div>
+              </div>
+              <div className={p.statCard}>
+                <div className={p.statNum} style={{ color: '#534ab7' }}>{content.filter(c => c.status === 'scheduled').length}</div>
+                <div className={p.statLabel}>Rejalashtirilgan</div>
+              </div>
+            </div>
+
+            {/* Pending approvals */}
+            {pending.length > 0 && (
+              <div>
+                <div className={p.sectionTitle}>
+                  <Clock size={14} />
+                  Sizning tasdiqlashingizni kutayotgan kontentlar
+                </div>
+                <div className={p.approvalList}>
+                  {pending.map(item => (
+                    <div key={item.id} className={p.approvalCard}>
+                      <div className={p.approvalInfo}>
+                        <div className={p.approvalTitle}>{item.title}</div>
+                        <div className={p.approvalMeta}>
+                          {item.content_type} • {item.platform} •{' '}
+                          {new Date(item.created_at).toLocaleDateString('uz-UZ')}
+                        </div>
+                        {item.caption && (
+                          <div className={p.approvalCaption}>{item.caption.slice(0, 150)}{item.caption.length > 150 ? '...' : ''}</div>
+                        )}
+                        <textarea
+                          className={p.feedbackInput}
+                          placeholder="Izoh yozing (ixtiyoriy)..."
+                          value={feedback}
+                          onChange={e => setFeedback(e.target.value)}
+                          rows={2}
+                        />
+                      </div>
+                      <div className={p.approvalActions}>
+                        <button
+                          className={`${p.approvalBtn} ${p.approvalBtnApprove}`}
+                          disabled={approving === item.id}
+                          onClick={() => handleApprove(item.id, true)}
+                        >
+                          <CheckCircle size={14} />
+                          {approving === item.id ? 'Saqlanmoqda...' : 'Tasdiqlash'}
+                        </button>
+                        <button
+                          className={`${p.approvalBtn} ${p.approvalBtnReject}`}
+                          disabled={approving === item.id}
+                          onClick={() => handleApprove(item.id, false)}
+                        >
+                          <XCircle size={14} />
+                          Rad etish
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Workflow progress */}
+            <div className={p.sectionTitle}>
+              <TrendingUp size={14} />
+              Joriy oy holati
+            </div>
+            <div className={p.progressCard}>
+              <div className={p.progressRow}>
+                <span>Rejalashtirilgan postlar</span>
+                <span style={{ fontWeight: 500 }}>{client.monthly_post_count}</span>
+              </div>
+              <div className={p.progressRow}>
+                <span>Nashr qilingan</span>
+                <span style={{ color: '#0f6e56', fontWeight: 500 }}>
+                  {content.filter(c => c.status === 'published').length}
+                </span>
+              </div>
+              <div className={p.progressRow}>
+                <span>Tayyor (rejalashtirilgan)</span>
+                <span style={{ color: '#534ab7', fontWeight: 500 }}>
+                  {content.filter(c => c.status === 'scheduled').length}
+                </span>
+              </div>
+              <div style={{ marginTop: 12 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#888780', marginBottom: 4 }}>
+                  <span>Umumiy progress</span>
+                  <span>{Math.round((content.filter(c => c.status === 'published').length / Math.max(client.monthly_post_count, 1)) * 100)}%</span>
+                </div>
+                <div style={{ height: 6, background: '#f1efe8', borderRadius: 3, overflow: 'hidden' }}>
+                  <div style={{
+                    height: '100%',
+                    background: '#1d9e75',
+                    borderRadius: 3,
+                    width: `${Math.round((content.filter(c => c.status === 'published').length / Math.max(client.monthly_post_count, 1)) * 100)}%`,
+                    transition: 'width 0.5s ease'
+                  }} />
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* CONTENT */}
+        {tab === 'content' && (
+          <div>
+            <div className={p.contentGrid}>
+              {content.length === 0 ? (
+                <div className={p.empty}>Kontentlar yo'q</div>
+              ) : content.map(item => (
+                <div key={item.id} className={p.contentCard}>
+                  {item.thumbnail_url ? (
+                    <div className={p.contentThumb}>
+                      <img src={item.thumbnail_url} alt={item.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    </div>
+                  ) : (
+                    <div className={p.contentThumbEmpty}>
+                      <FileText size={24} color="#b4b2a9" />
+                    </div>
+                  )}
+                  <div className={p.contentInfo}>
+                    <div className={p.contentTitle}>{item.title}</div>
+                    <div className={p.contentMeta}>{item.platform} • {item.content_type}</div>
+                    <span className={`${p.contentStatus} ${
+                      item.status === 'published' ? p.statusPublished :
+                      item.status === 'approved' ? p.statusApproved :
+                      item.status === 'client_approval' ? p.statusPending :
+                      item.status === 'rejected' ? p.statusRejected :
+                      p.statusDraft
+                    }`}>
+                      {item.status === 'published' ? 'Nashr qilingan' :
+                       item.status === 'approved' ? 'Tasdiqlangan' :
+                       item.status === 'client_approval' ? 'Tasdiqlash kutmoqda' :
+                       item.status === 'scheduled' ? 'Rejalashtirilgan' :
+                       item.status === 'rejected' ? 'Rad etilgan' : 'Qoralama'}
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* CAMPAIGNS */}
+        {tab === 'campaigns' && (
+          <div>
+            {campaigns.length === 0 ? (
+              <div className={p.empty}>Kampaniyalar yo'q</div>
+            ) : campaigns.map(camp => (
+              <div key={camp.id} className={p.campaignCard}>
+                <div className={p.campaignHeader}>
+                  <div>
+                    <div className={p.campaignName}>{camp.name}</div>
+                    <div className={p.campaignMeta}>{camp.platform} • {camp.objective}</div>
+                  </div>
+                  <span className={`${p.campStatus} ${camp.status === 'active' ? p.campActive : p.campPaused}`}>
+                    {camp.status === 'active' ? 'Aktiv' :
+                     camp.status === 'paused' ? "To'xtatilgan" :
+                     camp.status === 'completed' ? 'Tugallangan' : 'Qoralama'}
+                  </span>
+                </div>
+                <div className={p.campStats}>
+                  <div className={p.campStat}>
+                    <div className={p.campStatNum}>{camp.impressions.toLocaleString()}</div>
+                    <div className={p.campStatLabel}>Ko'rishlar</div>
+                  </div>
+                  <div className={p.campStat}>
+                    <div className={p.campStatNum}>{camp.clicks.toLocaleString()}</div>
+                    <div className={p.campStatLabel}>Bosishlar</div>
+                  </div>
+                  <div className={p.campStat}>
+                    <div className={p.campStatNum}>{camp.ctr ? `${camp.ctr}%` : '—'}</div>
+                    <div className={p.campStatLabel}>CTR</div>
+                  </div>
+                  <div className={p.campStat}>
+                    <div className={p.campStatNum}>{camp.conversions}</div>
+                    <div className={p.campStatLabel}>Konversiyalar</div>
+                  </div>
+                  <div className={p.campStat}>
+                    <div className={p.campStatNum}>${camp.budget_spent.toLocaleString()}</div>
+                    <div className={p.campStatLabel}>Sarflangan</div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* REPORTS */}
+        {tab === 'reports' && (
+          <div>
+            {reports.length === 0 ? (
+              <div className={p.empty}>Hisobotlar hali yo'q</div>
+            ) : reports.map(report => (
+              <div key={report.id} className={p.reportCard}>
+                <div className={p.reportHeader}>
+                  <div className={p.reportMonth}>
+                    {new Date(report.month).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long' })}
+                  </div>
+                </div>
+                <div className={p.reportStats}>
+                  <div><span className={p.rStat}>{report.posts_published}/{report.posts_planned}</span> post</div>
+                  <div><span className={p.rStat}>{report.total_reach.toLocaleString()}</span> qamrov</div>
+                  <div><span className={p.rStat}>{report.follower_growth > 0 ? '+' : ''}{report.follower_growth}</span> obunachi</div>
+                  <div><span className={p.rStat}>{report.leads_count}</span> lead</div>
+                </div>
+                {report.summary && (
+                  <div className={p.reportSummary}>{report.summary}</div>
+                )}
+                {report.recommendations && (
+                  <div className={p.reportRec}>
+                    <strong>Tavsiyalar:</strong> {report.recommendations}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </div>
+  )
+}
