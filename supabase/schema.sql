@@ -1,5 +1,5 @@
 -- =============================================
--- BuildMark CRM - Supabase Database Schema
+-- Grafuz CRM - Supabase Database Schema
 -- =============================================
 
 -- Enable UUID extension
@@ -209,6 +209,24 @@ create index idx_content_client on public.content_items(client_id);
 create index idx_content_status on public.content_items(status);
 create index idx_campaigns_client on public.campaigns(client_id);
 create index idx_notifications_user on public.notifications(user_id, is_read);
+
+-- =============================================
+-- ACTIVITY LOGS
+-- =============================================
+create table public.activity_logs (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references public.profiles(id) on delete set null,
+  user_name text not null,
+  action text not null,
+  entity_type text not null,
+  entity_id text,
+  entity_name text,
+  details jsonb,
+  created_at timestamptz default now()
+);
+
+create index idx_activity_logs_created on public.activity_logs(created_at desc);
+create index idx_activity_logs_user on public.activity_logs(user_id);
 
 -- =============================================
 -- ROW LEVEL SECURITY (RLS)

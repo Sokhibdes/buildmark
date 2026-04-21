@@ -1,5 +1,5 @@
 // =============================================
-// BuildMark CRM - TypeScript Types
+// Grafuz CRM - TypeScript Types
 // =============================================
 
 export type UserRole =
@@ -64,6 +64,8 @@ export interface WorkflowStage {
   order_index: number
   color: string
   description?: string
+  visible_to_client: boolean
+  requires_approval: boolean
 }
 
 export interface Task {
@@ -79,7 +81,10 @@ export interface Task {
   due_date?: string
   completed_at?: string
   visible_to_client: boolean
+  client_approved?: boolean
   client_notes?: string
+  content_url?: string
+  stage_entered_at?: string
   created_by?: string
   created_at: string
   updated_at: string

@@ -1,7 +1,7 @@
 {
   "name": "buildmark-crm",
   "version": "1.0.0",
-  "description": "BuildMark — Marketing agentlik boshqaruv tizimi",
+  "description": "Grafuz CRM — Marketing agentlik boshqaruv tizimi",
   "private": true,
   "scripts": {
     "dev": "next dev",

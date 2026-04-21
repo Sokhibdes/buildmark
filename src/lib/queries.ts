@@ -67,6 +67,7 @@ export async function createClient_db(client: Partial<Client>): Promise<Client> 
     .select()
     .single()
   if (error) throw error
+  log('created', 'client', data.id, data.company_name, { package: data.package, status: data.status })
   return data
 }
 
@@ -79,6 +80,7 @@ export async function updateClient(id: string, updates: Partial<Client>): Promis
     .select()
     .single()
   if (error) throw error
+  log('updated', 'client', data.id, data.company_name)
   return data
 }
 
@@ -97,7 +99,8 @@ export async function getTasks(filters?: {
     .select(`
       *,
       client:clients(id, company_name, logo_url),
-      stage:workflow_stages(id, name, slug, color)
+      stage:workflow_stages(id, name, slug, color),
+      assignee:profiles!assigned_to(id, full_name, role)
     `)
     .order('created_at', { ascending: false })
 
@@ -119,25 +122,90 @@ export async function createTask(task: Partial<Task>): Promise<Task> {
     .select()
     .single()
   if (error) throw error
+  log('created', 'task', data.id, data.title, { priority: data.priority, task_type: data.task_type })
   return data
 }
 
 export async function updateTask(id: string, updates: Partial<Task>): Promise<Task> {
   const supabase = createClient()
+  const payload: any = { ...updates }
+  if ('stage_id' in updates) payload.stage_entered_at = new Date().toISOString()
   const { data, error } = await supabase
     .from('tasks')
-    .update(updates)
+    .update(payload)
     .eq('id', id)
     .select()
     .single()
   if (error) throw error
+  const action = 'stage_id' in updates ? 'assigned' : 'updated'
+  log(action, 'task', data.id, data.title)
   return data
 }
 
-export async function deleteTask(id: string): Promise<void> {
+export async function getClientVisibleTasks(clientId: string): Promise<Task[]> {
+  const supabase = createClient()
+  const { data: stages } = await supabase
+    .from('workflow_stages')
+    .select('id, slug, requires_approval, visible_to_client')
+    .eq('visible_to_client', true)
+  if (!stages?.length) return []
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*, stage:workflow_stages(id, name, slug, color, visible_to_client, requires_approval)')
+    .eq('client_id', clientId)
+    .in('stage_id', stages.map(s => s.id))
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function approveClientTask(taskId: string): Promise<void> {
+  const supabase = createClient()
+  const { data: stage } = await supabase
+    .from('workflow_stages')
+    .select('id')
+    .eq('slug', 'tasdiqlandi')
+    .single()
+  if (!stage) throw new Error('Tasdiqlandi bosqichi topilmadi')
+  const { error } = await supabase
+    .from('tasks')
+    .update({ stage_id: stage.id, stage_entered_at: new Date().toISOString() })
+    .eq('id', taskId)
+  if (error) throw error
+  log('approved', 'task', taskId)
+}
+
+export async function approvePostingCheck(taskId: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase
+    .from('tasks')
+    .update({ client_approved: true })
+    .eq('id', taskId)
+  if (error) throw error
+}
+
+export async function getClientAllTasks(clientId: string): Promise<Task[]> {
+  const supabase = createClient()
+  const { data: stages } = await supabase
+    .from('workflow_stages')
+    .select('id, slug, name, color, visible_to_client, requires_approval, order_index')
+  if (!stages?.length) return []
+  const visibleIds = stages.filter(s => s.visible_to_client).map(s => s.id)
+  const { data, error } = await supabase
+    .from('tasks')
+    .select('*, stage:workflow_stages(id, name, slug, color, visible_to_client, requires_approval, order_index)')
+    .eq('client_id', clientId)
+    .in('stage_id', visibleIds)
+    .order('created_at', { ascending: false })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function deleteTask(id: string, title?: string): Promise<void> {
   const supabase = createClient()
   const { error } = await supabase.from('tasks').delete().eq('id', id)
   if (error) throw error
+  log('deleted', 'task', id, title)
 }
 
 // =============================================
@@ -182,6 +250,7 @@ export async function approveContent(id: string, approved: boolean, feedback?: s
     })
     .eq('id', id)
   if (error) throw error
+  log(approved ? 'approved' : 'rejected', 'content', id)
 }
 
 // =============================================
@@ -250,13 +319,40 @@ export async function getClientByToken(token: string): Promise<Client | null> {
   const supabase = createClient()
   const { data, error } = await supabase
     .from('client_tokens')
-    .select('client_id, expires_at, clients(*)')
+    .select('client_id, expires_at')
     .eq('token', token)
     .single()
 
   if (error || !data) return null
   if (data.expires_at && new Date(data.expires_at) < new Date()) return null
-  return (data as any).clients as Client
+
+  const { data: client } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('id', data.client_id)
+    .single()
+  return client ?? null
+}
+
+export async function generatePortalToken(clientId: string): Promise<string> {
+  const supabase = createClient()
+  const token = Array.from(crypto.getRandomValues(new Uint8Array(24)))
+    .map(b => b.toString(16).padStart(2, '0')).join('')
+  const { error } = await supabase
+    .from('client_tokens')
+    .upsert({ client_id: clientId, token }, { onConflict: 'client_id' })
+  if (error) throw error
+  return token
+}
+
+export async function getPortalToken(clientId: string): Promise<string | null> {
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('client_tokens')
+    .select('token')
+    .eq('client_id', clientId)
+    .single()
+  return data?.token ?? null
 }
 
 export async function getClientPortalData(clientId: string) {
@@ -294,6 +390,93 @@ export async function getClientPortalData(clientId: string) {
 // =============================================
 // NOTIFICATIONS
 // =============================================
+// =============================================
+// TASK COMMENTS
+// =============================================
+export interface TaskComment {
+  id: string
+  task_id: string
+  sender_type: 'client' | 'staff'
+  sender_name: string
+  content: string
+  created_at: string
+}
+
+export async function getTaskComments(taskId: string): Promise<TaskComment[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('task_comments')
+    .select('*')
+    .eq('task_id', taskId)
+    .order('created_at', { ascending: true })
+  if (error) throw error
+  return data ?? []
+}
+
+export async function createStaffComment(taskId: string, content: string, staffName: string): Promise<TaskComment> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('task_comments')
+    .insert({ task_id: taskId, sender_type: 'staff', sender_name: staffName, content })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+// =============================================
+// ACTIVITY LOGS
+// =============================================
+export async function logActivity(params: {
+  user_id: string
+  user_name: string
+  action: string
+  entity_type: string
+  entity_id?: string
+  entity_name?: string
+  details?: Record<string, any>
+}) {
+  const supabase = createClient()
+  await supabase.from('activity_logs').insert(params)
+}
+
+async function getCurrentUserInfo(): Promise<{ id: string; name: string } | null> {
+  const supabase = createClient()
+  const { data: { user } } = await supabase.auth.getUser()
+  if (!user) return null
+  const { data } = await supabase.from('profiles').select('full_name').eq('id', user.id).single()
+  return { id: user.id, name: data?.full_name ?? user.email ?? 'Noma\'lum' }
+}
+
+async function log(action: string, entity_type: string, entity_id?: string, entity_name?: string, details?: Record<string, any>) {
+  const u = await getCurrentUserInfo()
+  if (!u) return
+  await logActivity({ user_id: u.id, user_name: u.name, action, entity_type, entity_id, entity_name, details })
+}
+
+export interface ActivityLog {
+  id: string
+  user_id: string | null
+  user_name: string
+  action: string
+  entity_type: string
+  entity_id: string | null
+  entity_name: string | null
+  details: Record<string, any> | null
+  created_at: string
+}
+
+export async function getActivityLogs(limit = 100): Promise<ActivityLog[]> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('activity_logs')
+    .select('*')
+    .order('created_at', { ascending: false })
+    .limit(limit)
+  if (error) throw error
+  return data ?? []
+}
+
 export async function getNotifications(userId: string) {
   const supabase = createClient()
   const { data } = await supabase

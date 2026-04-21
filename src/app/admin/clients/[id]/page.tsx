@@ -4,16 +4,12 @@ import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft, Edit, ExternalLink, Copy, Check, Instagram, Send, Facebook } from 'lucide-react'
-import { getClientById, getTasks, getContentItems, getCampaigns, getMonthlyReports, updateClient } from '@/lib/queries'
+import { getClientById, getTasks, getContentItems, getCampaigns, getMonthlyReports, updateClient, generatePortalToken, getPortalToken } from '@/lib/queries'
 import type { Client, Task, ContentItem, Campaign, MonthlyReport } from '@/types'
 import { PACKAGE_LABELS } from '@/types'
 import s from '../../admin.module.css'
 
 type Tab = 'overview' | 'tasks' | 'content' | 'campaigns' | 'reports'
-
-function generateToken(clientId: string) {
-  return btoa(`${clientId}-${Date.now()}`).replace(/[^a-zA-Z0-9]/g, '').slice(0, 32)
-}
 
 export default function ClientDetailPage() {
   const { id } = useParams<{ id: string }>()
@@ -27,6 +23,7 @@ export default function ClientDetailPage() {
   const [loading, setLoading] = useState(true)
   const [portalCopied, setPortalCopied] = useState(false)
   const [enablingPortal, setEnablingPortal] = useState(false)
+  const [portalToken, setPortalToken] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([
@@ -35,12 +32,14 @@ export default function ClientDetailPage() {
       getContentItems(id),
       getCampaigns(id),
       getMonthlyReports(id),
-    ]).then(([c, t, ct, camp, rep]) => {
+      getPortalToken(id),
+    ]).then(([c, t, ct, camp, rep, token]) => {
       setClient(c)
       setTasks(t)
       setContent(ct)
       setCampaigns(camp)
       setReports(rep)
+      setPortalToken(token)
       setLoading(false)
     })
   }, [id])
@@ -48,14 +47,32 @@ export default function ClientDetailPage() {
   const handleEnablePortal = async () => {
     if (!client) return
     setEnablingPortal(true)
-    const updated = await updateClient(id, { portal_access: true })
-    setClient(updated)
-    setEnablingPortal(false)
+    try {
+      const [updated, token] = await Promise.all([
+        updateClient(id, { portal_access: true }),
+        generatePortalToken(id),
+      ])
+      setClient(updated)
+      setPortalToken(token)
+    } catch {}
+    finally { setEnablingPortal(false) }
   }
 
-  const portalUrl = `${process.env.NEXT_PUBLIC_APP_URL}/client/portal?token=${generateToken(id)}`
+  const handleRegenToken = async () => {
+    setEnablingPortal(true)
+    try {
+      const token = await generatePortalToken(id)
+      setPortalToken(token)
+    } catch {}
+    finally { setEnablingPortal(false) }
+  }
+
+  const portalUrl = portalToken
+    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/client/portal?token=${portalToken}`
+    : ''
 
   const copyPortalLink = () => {
+    if (!portalUrl) return
     navigator.clipboard.writeText(portalUrl)
     setPortalCopied(true)
     setTimeout(() => setPortalCopied(false), 2000)
@@ -195,7 +212,7 @@ export default function ClientDetailPage() {
             {/* Client portal */}
             <div className={s.card}>
               <div style={{ fontSize: 12, fontWeight: 500, color: '#888780', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Mijoz portali</div>
-              {client.portal_access ? (
+              {client.portal_access && portalToken ? (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                     <span className={`${s.badge} ${s.badgeTeal}`}>Portal faol</span>
@@ -204,14 +221,23 @@ export default function ClientDetailPage() {
                   <div style={{ background: '#f5f5f3', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: '#5f5e5a', wordBreak: 'break-all', marginBottom: 10 }}>
                     {portalUrl}
                   </div>
-                  <button className={`${s.btn} ${s.btnSm}`} onClick={copyPortalLink} style={{ width: '100%', justifyContent: 'center' }}>
-                    {portalCopied ? <><Check size={12} /> Nusxalandi!</> : <><Copy size={12} /> Havolani nusxalash</>}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className={`${s.btn} ${s.btnSm}`} onClick={copyPortalLink} style={{ flex: 1, justifyContent: 'center' }}>
+                      {portalCopied ? <><Check size={12} /> Nusxalandi!</> : <><Copy size={12} /> Havolani nusxalash</>}
+                    </button>
+                    <a href={portalUrl} target="_blank" rel="noreferrer" className={`${s.btn} ${s.btnSm}`} style={{ justifyContent: 'center' }}>
+                      <ExternalLink size={12} /> Ochish
+                    </a>
+                  </div>
+                  <button className={`${s.btn} ${s.btnSm}`} onClick={handleRegenToken} disabled={enablingPortal}
+                    style={{ width: '100%', justifyContent: 'center', marginTop: 6, color: '#888780', fontSize: 11 }}>
+                    {enablingPortal ? 'Yangilanmoqda...' : 'Yangi havola yaratish'}
                   </button>
                 </div>
               ) : (
                 <div>
                   <div style={{ fontSize: 13, color: '#888780', marginBottom: 12, lineHeight: 1.5 }}>
-                    Portal yoqilganda, mijoz o'z kontentlari, kampaniyalari va hisobotlarini ko'ra oladi va kontentlarni tasdiqlashi mumkin.
+                    Portal yoqilganda, mijoz o'z vazifalarini ko'ra oladi, kontent planlarini tasdiqlashi va tayyor kontentlarni ko'rishi mumkin.
                   </div>
                   <button
                     className={`${s.btn} ${s.btnPrimary}`}
