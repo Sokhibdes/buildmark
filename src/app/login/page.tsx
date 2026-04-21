@@ -1,8 +1,6 @@
 'use client'
-// src/app/login/page.tsx
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -16,15 +14,27 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    const supabase = createClient()
-    const { error: authError } = await supabase.auth.signInWithPassword({ email, password })
+    const res = await fetch(
+      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=password`,
+      {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
+        },
+        body: JSON.stringify({ email, password }),
+      }
+    )
 
-    if (authError) {
+    const data = await res.json()
+
+    if (!res.ok || data.error) {
       setError("Email yoki parol noto'g'ri")
       setLoading(false)
       return
     }
 
+    localStorage.setItem('sb-token', data.access_token)
     router.push('/admin/dashboard')
   }
 
@@ -44,54 +54,31 @@ export default function LoginPage() {
 
         <form onSubmit={handleLogin}>
           <div style={{ marginBottom: 14 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#5f5e5a', marginBottom: 5 }}>
-              Email
-            </label>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#5f5e5a', marginBottom: 5 }}>Email</label>
             <input
               type="email" required
               value={email} onChange={e => setEmail(e.target.value)}
-              style={{
-                width: '100%', padding: '9px 12px',
-                border: '1px solid #d3d1c7', borderRadius: 6,
-                fontSize: 13, color: '#1a1a18', fontFamily: 'inherit',
-                boxSizing: 'border-box'
-              }}
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid #d3d1c7', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' as const }}
               placeholder="email@agentlik.uz"
             />
           </div>
           <div style={{ marginBottom: 20 }}>
-            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#5f5e5a', marginBottom: 5 }}>
-              Parol
-            </label>
+            <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#5f5e5a', marginBottom: 5 }}>Parol</label>
             <input
               type="password" required
               value={password} onChange={e => setPassword(e.target.value)}
-              style={{
-                width: '100%', padding: '9px 12px',
-                border: '1px solid #d3d1c7', borderRadius: 6,
-                fontSize: 13, color: '#1a1a18', fontFamily: 'inherit',
-                boxSizing: 'border-box'
-              }}
+              style={{ width: '100%', padding: '9px 12px', border: '1px solid #d3d1c7', borderRadius: 6, fontSize: 13, boxSizing: 'border-box' as const }}
               placeholder="••••••••"
             />
           </div>
           {error && (
-            <div style={{
-              background: '#faece7', color: '#993c1d',
-              padding: '8px 12px', borderRadius: 6, fontSize: 12,
-              marginBottom: 14
-            }}>{error}</div>
+            <div style={{ background: '#faece7', color: '#993c1d', padding: '8px 12px', borderRadius: 6, fontSize: 12, marginBottom: 14 }}>
+              {error}
+            </div>
           )}
           <button
             type="submit" disabled={loading}
-            style={{
-              width: '100%', padding: '10px',
-              background: loading ? '#b5d4f4' : '#185fa5',
-              color: 'white', border: 'none',
-              borderRadius: 6, fontSize: 14, fontWeight: 500,
-              cursor: loading ? 'not-allowed' : 'pointer',
-              fontFamily: 'inherit'
-            }}
+            style={{ width: '100%', padding: '10px', background: loading ? '#b5d4f4' : '#185fa5', color: 'white', border: 'none', borderRadius: 6, fontSize: 14, fontWeight: 500, cursor: 'pointer' }}
           >
             {loading ? 'Kirilmoqda...' : 'Kirish'}
           </button>
