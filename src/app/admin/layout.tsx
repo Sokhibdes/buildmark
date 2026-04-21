@@ -16,7 +16,7 @@ const BASE_NAV: { section: string; items: { href: string; label: string; icon: a
     section: 'Asosiy',
     items: [
       { href: '/admin/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-      { href: '/admin/clients', label: 'Mijozlar', icon: Users },
+      { href: '/admin/clients', label: 'Mijozlar', icon: Users, adminOnly: true },
       { href: '/admin/tasks', label: 'Vazifalar', icon: Kanban },
     ]
   },
@@ -31,7 +31,7 @@ const BASE_NAV: { section: string; items: { href: string; label: string; icon: a
   {
     section: 'Boshqaruv',
     items: [
-      { href: '/admin/team', label: 'Komanda', icon: UserCircle },
+      { href: '/admin/team', label: 'Komanda', icon: UserCircle, adminOnly: true },
       { href: '/admin/reports', label: 'Hisobotlar', icon: BarChart3 },
       { href: '/admin/activity', label: 'Faollik', icon: Activity, adminOnly: true },
     ]
@@ -41,10 +41,21 @@ const BASE_NAV: { section: string; items: { href: string; label: string; icon: a
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const [sidebarOpen, setSidebarOpen] = useState(true)
+  const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userName, setUserName] = useState('Admin')
   const [userRole, setUserRole] = useState<UserRole | null>(null)
+  const [userAvatar, setUserAvatar] = useState<string | null>(null)
   const [checking, setChecking] = useState(true)
+
+  useEffect(() => {
+    // Default open on desktop, closed on mobile
+    setSidebarOpen(window.innerWidth >= 768)
+  }, [])
+
+  // Close sidebar on mobile when navigating
+  useEffect(() => {
+    if (window.innerWidth < 768) setSidebarOpen(false)
+  }, [pathname])
 
   useEffect(() => {
     const supabase = createClient()
@@ -54,12 +65,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         setUserName(session.user.email?.split('@')[0] ?? 'Admin')
         const { data: profile } = await supabase
           .from('profiles')
-          .select('full_name, role')
+          .select('full_name, role, avatar_url')
           .eq('id', session.user.id)
           .single()
         if (profile) {
           setUserName(profile.full_name)
           setUserRole(profile.role as UserRole)
+          setUserAvatar(profile.avatar_url ?? null)
         }
       })
       .catch(() => router.push('/login'))
@@ -89,6 +101,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   return (
     <div className={styles.layout}>
+      {/* Mobile overlay backdrop */}
+      {sidebarOpen && (
+        <div className={styles.mobileOverlay} onClick={() => setSidebarOpen(false)} />
+      )}
       <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : styles.sidebarClosed}`}>
         <div className={styles.sidebarHeader}>
           <div className={styles.logoMark}>
@@ -132,7 +148,12 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         <div className={styles.sidebarFooter}>
           <div className={styles.userInfo}>
-            <div className={styles.userAvatar}>{userName.slice(0, 2).toUpperCase()}</div>
+            {userAvatar ? (
+              <img src={userAvatar} alt={userName}
+                style={{ width: 30, height: 30, borderRadius: 8, objectFit: 'cover', flexShrink: 0, border: '1.5px solid #bfdbfe' }} />
+            ) : (
+              <div className={styles.userAvatar}>{userName.slice(0, 2).toUpperCase()}</div>
+            )}
             {sidebarOpen && (
               <div className={styles.userDetails}>
                 <div className={styles.userName}>{userName}</div>
@@ -149,6 +170,13 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className={styles.main}>
         <header className={styles.topbar}>
           <div className={styles.topbarLeft}>
+            {/* Mobile hamburger */}
+            <button
+              className={`${styles.mobileSidebarToggle} ${styles.menuBtn}`}
+              onClick={() => setSidebarOpen(true)}
+            >
+              <Menu size={18} />
+            </button>
             <div className={styles.breadcrumb}>
               <span className={styles.breadcrumbActive}>
                 {pathname.includes('dashboard') ? 'Dashboard' :

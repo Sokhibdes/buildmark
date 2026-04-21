@@ -1,23 +1,24 @@
 'use client'
 import { useState, useEffect, Suspense } from 'react'
-import { useSearchParams } from 'next/navigation'
+import { useRouter } from 'next/navigation'
 import {
   CheckCircle, XCircle, Clock, TrendingUp, FileText,
   Instagram, Send, ExternalLink, ClipboardList, Bell,
-  BarChart2, CheckSquare, Layers, MessageSquare, ChevronDown, ChevronUp,
+  BarChart2, CheckSquare, Layers, MessageSquare, ChevronDown, ChevronUp, LogOut,
 } from 'lucide-react'
 import {
-  getClientByToken, getClientPortalData, approveContent,
+  getClientsByEmail, getClientPortalData, getClientContentCounts, approveContent,
   getClientAllTasks, approveClientTask, approvePostingCheck,
 } from '@/lib/queries'
+import { createClient } from '@/lib/supabase/client'
 import type { Client, ContentItem, Campaign, MonthlyReport, Task } from '@/types'
 import { TASK_TYPE_LABELS } from '@/types'
 import p from './portal.module.css'
 
 type Tab = 'overview' | 'tasks' | 'content' | 'campaigns' | 'reports'
 
-function CommentSection({ taskId, token, open, comments, text, sending, onToggle, onTextChange, onSend }: {
-  taskId: string; token: string; open: boolean
+function CommentSection({ taskId, open, comments, text, sending, onToggle, onTextChange, onSend }: {
+  taskId: string; open: boolean
   comments?: any[]; text: string; sending: boolean
   onToggle: () => void; onTextChange: (t: string) => void; onSend: () => void
 }) {
@@ -120,9 +121,9 @@ function CommentSection({ taskId, token, open, comments, text, sending, onToggle
 }
 
 function PortalContent() {
-  const searchParams = useSearchParams()
-  const token = searchParams.get('token')
+  const router = useRouter()
 
+  const [allClients, setAllClients] = useState<Client[]>([])
   const [client, setClient]       = useState<Client | null>(null)
   const [content, setContent]     = useState<ContentItem[]>([])
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
@@ -132,6 +133,8 @@ function PortalContent() {
   const [tab, setTab]             = useState<Tab>('overview')
   const [loading, setLoading]     = useState(true)
   const [error, setError]         = useState('')
+  const [accessToken, setAccessToken] = useState<string | null>(null)
+  const [contentCounts, setContentCounts] = useState<Record<string, number>>({})
   const [approving, setApproving]     = useState<string | null>(null)
   const [feedback, setFeedback]       = useState<Record<string, string>>({})
   const [openComments, setOpenComments] = useState<string | null>(null)
@@ -142,41 +145,89 @@ function PortalContent() {
   const toggleDesc = (id: string) => setExpandedDesc(prev => ({ ...prev, [id]: !prev[id] }))
 
   useEffect(() => {
-    if (!token) { setError('Token topilmadi'); setLoading(false); return }
-
+    const supabase = createClient()
     let clientId: string | null = null
     let interval: ReturnType<typeof setInterval> | null = null
 
-    getClientByToken(token).then(async clientData => {
-      if (!clientData) { setError("Kirish huquqi yo'q yoki muddati tugagan"); setLoading(false); return }
-      clientId = clientData.id
-      setClient(clientData)
-      const [data, allTasks] = await Promise.all([
-        getClientPortalData(clientData.id),
-        getClientAllTasks(clientData.id),
-      ])
-      setContent(data.content_items)
-      setCampaigns(data.campaigns)
-      setReports(data.reports)
-      setPending(data.pending_approvals)
-      setTasks(allTasks)
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
+      if (!session) { router.push('/client/login'); return }
+
+      const { data: profile } = await supabase
+        .from('profiles').select('role').eq('id', session.user.id).single()
+      if (profile?.role !== 'client') {
+        await supabase.auth.signOut()
+        router.push('/client/login')
+        return
+      }
+
+      setAccessToken(session.access_token)
+
+      const clientList = await getClientsByEmail(session.user.email!)
+      if (!clientList.length) { setError("Mijoz ma'lumotlari topilmadi"); setLoading(false); return }
+
+      setAllClients(clientList)
+
+      // Bitta kompaniya bo'lsa — to'g'ri yuklaymiz
+      if (clientList.length === 1) {
+        const clientData = clientList[0]
+        clientId = clientData.id
+        setClient(clientData)
+        const [data, allTasks, counts] = await Promise.all([
+          getClientPortalData(clientData.id),
+          getClientAllTasks(clientData.id),
+          getClientContentCounts(clientData.id),
+        ])
+        setContent(data.content_items)
+        setCampaigns(data.campaigns)
+        setReports(data.reports)
+        setPending(data.pending_approvals)
+        setTasks(allTasks)
+        setContentCounts(counts)
+      }
+      // Ko'p kompaniya bo'lsa — selector ko'rsatiladi (client = null qoladi)
       setLoading(false)
 
-      // Mijoz Supabase auth orqali kirmaydi — 15 soniyada bir yangilaymiz
       interval = setInterval(async () => {
         if (!clientId) return
-        const [fresh, freshTasks] = await Promise.all([
+        const [fresh, freshTasks, freshCounts] = await Promise.all([
           getClientPortalData(clientId),
           getClientAllTasks(clientId),
+          getClientContentCounts(clientId),
         ])
         setContent(fresh.content_items)
         setPending(fresh.pending_approvals)
         setTasks(freshTasks)
+        setContentCounts(freshCounts)
+        const { data: { session: s } } = await supabase.auth.getSession()
+        if (s) setAccessToken(s.access_token)
       }, 15000)
     })
 
     return () => { if (interval) clearInterval(interval) }
-  }, [token])
+  }, [router])
+
+  const handleLogout = async () => {
+    const supabase = createClient()
+    await supabase.auth.signOut()
+    router.push('/client/login')
+  }
+
+  const selectCompany = async (selected: Client) => {
+    setLoading(true)
+    setClient(selected)
+    const [data, allTasks, counts] = await Promise.all([
+      getClientPortalData(selected.id),
+      getClientAllTasks(selected.id),
+      getClientContentCounts(selected.id),
+    ])
+    setContent(data.content_items)
+    setCampaigns(data.campaigns)
+    setReports(data.reports)
+    setPending(data.pending_approvals)
+    setTasks(allTasks)
+    setContentCounts(counts)
+    setLoading(false)
+  }
 
   /* ─── task helpers ─── */
   const PRIORITY_UZ: Record<string, { label: string; bg: string; color: string }> = {
@@ -198,10 +249,16 @@ function PortalContent() {
   /* ─── approvals ─── */
   const handleApproveContent = async (id: string, approved: boolean) => {
     setApproving(id)
+    const newStatus = approved ? 'approved' : 'rejected'
     await approveContent(id, approved, feedback[id] ?? '')
     setPending(prev => prev.filter(c => c.id !== id))
     setContent(prev => prev.map(c => c.id === id
-      ? { ...c, status: approved ? 'approved' : 'rejected' as any, client_approved: approved } : c))
+      ? { ...c, status: newStatus as any, client_approved: approved } : c))
+    setContentCounts(prev => ({
+      ...prev,
+      client_approval: Math.max((prev.client_approval ?? 1) - 1, 0),
+      [newStatus]: (prev[newStatus] ?? 0) + 1,
+    }))
     setApproving(null)
   }
 
@@ -230,7 +287,9 @@ function PortalContent() {
     if (openComments === taskId) { setOpenComments(null); return }
     setOpenComments(taskId)
     if (!taskComments[taskId]) {
-      const res = await fetch(`/api/portal/comments?token=${token}&task_id=${taskId}`)
+      const res = await fetch(`/api/portal/comments?task_id=${taskId}`, {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      })
       const data = await res.json()
       setTaskComments(prev => ({ ...prev, [taskId]: Array.isArray(data) ? data : [] }))
     }
@@ -242,8 +301,11 @@ function PortalContent() {
     setCommentSending(taskId)
     const res = await fetch('/api/portal/comments', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ token, task_id: taskId, content: text }),
+      headers: {
+        'Content-Type': 'application/json',
+        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+      },
+      body: JSON.stringify({ task_id: taskId, content: text }),
     })
     if (res.ok) {
       const newComment = await res.json()
@@ -267,11 +329,84 @@ function PortalContent() {
       <div className={p.errorText}>{error}</div>
     </div>
   )
+  // Kompaniya tanlash ekrani
+  if (!client && allClients.length > 1) return (
+    <div style={{
+      minHeight: '100vh', background: '#f4f3f0',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      padding: 16, fontFamily: "-apple-system, BlinkMacSystemFont, 'Inter', system-ui, sans-serif",
+    }}>
+      <div style={{ width: '100%', maxWidth: 440 }}>
+        <div style={{ textAlign: 'center', marginBottom: 28 }}>
+          <div style={{
+            width: 48, height: 48, borderRadius: 13, margin: '0 auto 14px',
+            background: 'linear-gradient(135deg, #185fa5, #1e7dd4)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: '0 4px 12px rgba(24,95,165,0.3)',
+          }}>
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+              <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+              <polyline points="9 22 9 12 15 12 15 22" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+          </div>
+          <div style={{ fontSize: 20, fontWeight: 700, color: '#18181b', letterSpacing: '-0.4px' }}>Kompaniyani tanlang</div>
+          <div style={{ fontSize: 13, color: '#a1a1aa', marginTop: 4 }}>Qaysi kompaniya portalini ochmoqchisiz?</div>
+        </div>
+
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+          {allClients.map(c => (
+            <button
+              key={c.id}
+              onClick={() => selectCompany(c)}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 14,
+                background: '#ffffff', border: '1.5px solid #ebe9e2',
+                borderRadius: 12, padding: '14px 16px',
+                cursor: 'pointer', textAlign: 'left', width: '100%',
+                fontFamily: 'inherit', transition: 'all 0.15s',
+                boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#185fa5'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 4px 12px rgba(24,95,165,0.1)' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.borderColor = '#ebe9e2'; (e.currentTarget as HTMLButtonElement).style.boxShadow = '0 1px 3px rgba(0,0,0,0.04)' }}
+            >
+              <div style={{
+                width: 40, height: 40, borderRadius: 10, flexShrink: 0,
+                background: 'linear-gradient(135deg, #dbeafe, #bfdbfe)',
+                color: '#1d4ed8', display: 'flex', alignItems: 'center',
+                justifyContent: 'center', fontSize: 14, fontWeight: 700,
+              }}>
+                {c.company_name.slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontSize: 14, fontWeight: 600, color: '#18181b' }}>{c.company_name}</div>
+                <div style={{ fontSize: 12, color: '#a1a1aa', marginTop: 2 }}>
+                  {c.status === 'active' ? 'Aktiv' : c.status === 'paused' ? "To'xtatilgan" : c.status}
+                  {c.industry ? ` • ${c.industry}` : ''}
+                </div>
+              </div>
+            </button>
+          ))}
+        </div>
+
+        <button
+          onClick={handleLogout}
+          style={{
+            width: '100%', marginTop: 16, padding: '10px 0',
+            background: 'none', border: '1px solid #e4e2db', borderRadius: 9,
+            fontSize: 13, color: '#a1a1aa', cursor: 'pointer', fontFamily: 'inherit',
+          }}
+        >
+          Chiqish
+        </button>
+      </div>
+    </div>
+  )
+
   if (!client) return null
 
-  const initials     = client.company_name.slice(0, 2).toUpperCase()
-  const publishedPosts = content.filter(c => c.status === 'published').length
-  const progressPct  = Math.round((publishedPosts / Math.max(client.monthly_post_count, 1)) * 100)
+  const initials       = client.company_name.slice(0, 2).toUpperCase()
+  const publishedPosts = contentCounts['published'] ?? 0
+  const progressPct    = Math.min(Math.round((publishedPosts / Math.max(client.monthly_post_count, 1)) * 100), 100)
   const totalPendingCount = pending.length + planTasks.length + postingCheckTasks.length
 
   return (
@@ -301,6 +436,36 @@ function PortalContent() {
               {client.instagram_url && <a href={client.instagram_url} target="_blank" rel="noreferrer" className={p.socialLink}><Instagram size={16} /></a>}
               {client.telegram_url  && <a href={client.telegram_url}  target="_blank" rel="noreferrer" className={p.socialLink}><Send size={16} /></a>}
             </div>
+            {allClients.length > 1 && (
+              <button
+                onClick={() => setClient(null)}
+                title="Kompaniyani almashtirish"
+                style={{
+                  display: 'flex', alignItems: 'center', gap: 5,
+                  padding: '5px 10px', borderRadius: 8,
+                  background: '#f4f3f0', border: '1px solid #ebe9e2',
+                  color: '#71717a', cursor: 'pointer', fontSize: 11,
+                  fontWeight: 600, fontFamily: 'inherit', transition: 'all 0.15s',
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                <Layers size={12} /> Almashtirish
+              </button>
+            )}
+            <button
+              onClick={handleLogout}
+              title="Chiqish"
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                width: 32, height: 32, borderRadius: 8,
+                background: '#f4f3f0', border: '1px solid #ebe9e2',
+                color: '#a1a1aa', cursor: 'pointer', transition: 'all 0.15s',
+              }}
+              onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = '#fee2e2'; (e.currentTarget as HTMLButtonElement).style.color = '#dc2626' }}
+              onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = '#f4f3f0'; (e.currentTarget as HTMLButtonElement).style.color = '#a1a1aa' }}
+            >
+              <LogOut size={14} />
+            </button>
           </div>
         </div>
       </header>
@@ -328,30 +493,32 @@ function PortalContent() {
         {/* ══ OVERVIEW ══ */}
         {tab === 'overview' && (
           <div>
-            {/* Vazifa statistikasi */}
-            <div className={p.sectionTitle}><CheckSquare size={14} />Vazifalar holati</div>
+            {/* Kontent holati statistikasi */}
+            <div className={p.sectionTitle}><CheckSquare size={14} />Kontent holati</div>
             <div className={p.statsGrid}>
               <div className={p.statCard}>
-                <div className={p.statNum}>{tasks.length}</div>
-                <div className={p.statLabel}>Jami vazifalar</div>
+                <div className={p.statNum} style={{ color: '#0f6e56' }}>
+                  {contentCounts['published'] ?? 0}
+                </div>
+                <div className={p.statLabel}>Nashr qilindi</div>
               </div>
               <div className={p.statCard}>
-                <div className={p.statNum} style={{ color: '#854f0b' }}>
-                  {planTasks.length}
+                <div className={p.statNum} style={{ color: '#185fa5' }}>
+                  {contentCounts['approved'] ?? 0}
                 </div>
-                <div className={p.statLabel}>Tasdiqlash kerak</div>
+                <div className={p.statLabel}>Tasdiqlangan</div>
               </div>
               <div className={p.statCard}>
                 <div className={p.statNum} style={{ color: '#534ab7' }}>
-                  {postingCheckTasks.length}
+                  {contentCounts['scheduled'] ?? 0}
                 </div>
-                <div className={p.statLabel}>Yangi so&apos;rov</div>
+                <div className={p.statLabel}>Rejalashtirilgan</div>
               </div>
               <div className={p.statCard}>
-                <div className={p.statNum} style={{ color: '#0f6e56' }}>
-                  {doneTasks.length}
+                <div className={p.statNum} style={{ color: '#854f0b' }}>
+                  {contentCounts['client_approval'] ?? 0}
                 </div>
-                <div className={p.statLabel}>Bajarildi</div>
+                <div className={p.statLabel}>Tasdiqlash kerak</div>
               </div>
             </div>
 
@@ -395,8 +562,8 @@ function PortalContent() {
               {[
                 ['Oy uchun reja', client.monthly_post_count, ''],
                 ['Nashr qilingan', publishedPosts, '#0f6e56'],
-                ['Tasdiqlash kutmoqda', pending.length, '#854f0b'],
-                ['Rejalashtirilgan', content.filter(c => c.status === 'scheduled').length, '#534ab7'],
+                ['Tasdiqlash kutmoqda', contentCounts['client_approval'] ?? 0, '#854f0b'],
+                ['Rejalashtirilgan', contentCounts['scheduled'] ?? 0, '#534ab7'],
               ].map(([label, value, color]) => (
                 <div key={label as string} className={p.progressRow}>
                   <span>{label}</span>
@@ -413,28 +580,31 @@ function PortalContent() {
               </div>
             </div>
 
-            {/* Vazifalar progress */}
-            {tasks.length > 0 && (
+            {/* Kontent bajarilish progressi */}
+            {Object.keys(contentCounts).length > 0 && (
               <>
-                <div className={p.sectionTitle} style={{ marginTop: 24 }}><CheckSquare size={14} />Vazifalar bajarilish holati</div>
+                <div className={p.sectionTitle} style={{ marginTop: 24 }}><CheckSquare size={14} />Kontent bajarilish progressi</div>
                 <div className={p.progressCard}>
-                  {[
-                    ['Kontent plan', planTasks.length, '#185fa5'],
-                    ['Posting Check', postingCheckTasks.length, '#534ab7'],
-                    ['Bajarildi', doneTasks.length, '#0f6e56'],
-                  ].map(([label, value, color]) => (
-                    <div key={label as string} className={p.progressRow}>
+                  {([
+                    ['Nashr qilindi', 'published', '#0f6e56'],
+                    ['Tasdiqlangan', 'approved', '#185fa5'],
+                    ['Rejalashtirilgan', 'scheduled', '#534ab7'],
+                    ['Tasdiqlash kerak', 'client_approval', '#854f0b'],
+                    ['Ko\'rib chiqilmoqda', 'in_review', '#5f5e5a'],
+                    ['Rad etilgan', 'rejected', '#993c1d'],
+                  ] as [string, string, string][]).filter(([, key]) => (contentCounts[key] ?? 0) > 0).map(([label, key, color]) => (
+                    <div key={key} className={p.progressRow}>
                       <span>{label}</span>
-                      <span style={{ fontWeight: 500, color: color as string }}>{value}</span>
+                      <span style={{ fontWeight: 500, color }}>{contentCounts[key]}</span>
                     </div>
                   ))}
                   <div style={{ marginTop: 12 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#888780', marginBottom: 4 }}>
-                      <span>Bajarilgan vazifalar</span>
-                      <span>{doneTasks.length} / {tasks.length} ({tasks.length ? Math.round((doneTasks.length / tasks.length) * 100) : 0}%)</span>
+                      <span>Nashr qilingan</span>
+                      <span>{contentCounts['published'] ?? 0} / {client.monthly_post_count} ({Math.min(Math.round(((contentCounts['published'] ?? 0) / Math.max(client.monthly_post_count, 1)) * 100), 100)}%)</span>
                     </div>
                     <div style={{ height: 6, background: '#f1efe8', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', background: '#0f6e56', borderRadius: 3, width: `${tasks.length ? Math.round((doneTasks.length / tasks.length) * 100) : 0}%` }} />
+                      <div style={{ height: '100%', background: '#0f6e75', borderRadius: 3, width: `${Math.min(Math.round(((contentCounts['published'] ?? 0) / Math.max(client.monthly_post_count, 1)) * 100), 100)}%` }} />
                     </div>
                   </div>
                 </div>
@@ -512,7 +682,7 @@ function PortalContent() {
                               </>
                             )}
                             <CommentSection
-                              taskId={task.id} token={token!}
+                              taskId={task.id}
                               open={openComments === task.id}
                               comments={taskComments[task.id]}
                               text={commentText[task.id] ?? ''}
@@ -612,7 +782,7 @@ function PortalContent() {
                               </>
                             )}
                             <CommentSection
-                              taskId={task.id} token={token!}
+                              taskId={task.id}
                               open={openComments === task.id}
                               comments={taskComments[task.id]}
                               text={commentText[task.id] ?? ''}

@@ -392,12 +392,48 @@
   color: #a1a1aa; font-size: 14px;
 }
 
+/* Mobile elements — hidden on desktop */
+.mobileOverlay { display: none; }
+.mobileSidebarToggle { display: none !important; }
+
 /* ═══════════════════════════════════════
    RESPONSIVE
 ═══════════════════════════════════════ */
 @media (max-width: 768px) {
-  .sidebarOpen { width: 200px; }
+  /* Sidebar becomes a fixed overlay drawer */
+  .sidebar {
+    position: fixed !important;
+    left: 0; top: 0; bottom: 0;
+    z-index: 200;
+    width: 240px !important;
+    transform: translateX(-100%);
+    transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    box-shadow: 4px 0 24px rgba(0,0,0,0.14);
+  }
+  .sidebarOpen  { transform: translateX(0)    !important; }
+  .sidebarClosed { transform: translateX(-100%) !important; }
+
+  /* Backdrop */
+  .mobileOverlay {
+    display: block;
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.45);
+    z-index: 199;
+    backdrop-filter: blur(1px);
+    animation: fadeInOverlay 0.15s ease;
+  }
+  @keyframes fadeInOverlay { from { opacity: 0; } to { opacity: 1; } }
+
+  /* Hamburger in topbar */
+  .mobileSidebarToggle { display: flex !important; }
+
+  /* Content adjustments */
+  .content { padding: 14px 12px; }
+  .topbar { padding: 0 14px; }
   .grid2, .grid3 { grid-template-columns: 1fr; }
-  .content { padding: 16px; }
-  .topbar { padding: 0 16px; }
+  .pageHeader { flex-direction: column; align-items: flex-start; gap: 10px; }
+  .statsGrid { grid-template-columns: repeat(2, 1fr); }
+  .pageTitle { font-size: 17px; }
+  .table { font-size: 12px; }
+  .table th, .table td { padding: 10px 10px; }
 }

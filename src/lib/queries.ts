@@ -48,6 +48,21 @@ export async function getClients(): Promise<Client[]> {
   return data ?? []
 }
 
+export async function getClientsByEmail(email: string): Promise<Client[]> {
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('clients')
+    .select('*')
+    .eq('email', email)
+    .order('company_name')
+  return data ?? []
+}
+
+export async function getClientByEmail(email: string): Promise<Client | null> {
+  const clients = await getClientsByEmail(email)
+  return clients[0] ?? null
+}
+
 export async function getClientById(id: string): Promise<Client | null> {
   const supabase = createClient()
   const { data, error } = await supabase
@@ -69,6 +84,13 @@ export async function createClient_db(client: Partial<Client>): Promise<Client> 
   if (error) throw error
   log('created', 'client', data.id, data.company_name, { package: data.package, status: data.status })
   return data
+}
+
+export async function deleteClient(id: string, companyName?: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from('clients').delete().eq('id', id)
+  if (error) throw error
+  log('deleted', 'client', id, companyName)
 }
 
 export async function updateClient(id: string, updates: Partial<Client>): Promise<Client> {
@@ -99,13 +121,12 @@ export async function getTasks(filters?: {
     .select(`
       *,
       client:clients(id, company_name, logo_url),
-      stage:workflow_stages(id, name, slug, color),
-      assignee:profiles!assigned_to(id, full_name, role)
+      stage:workflow_stages(id, name, slug, color)
     `)
     .order('created_at', { ascending: false })
 
   if (filters?.clientId) query = query.eq('client_id', filters.clientId)
-  if (filters?.assignedTo) query = query.eq('assigned_to', filters.assignedTo)
+  if (filters?.assignedTo) query = query.contains('assigned_to', [filters.assignedTo])
   if (filters?.status) query = query.eq('status', filters.status)
   if (filters?.stageId) query = query.eq('stage_id', filters.stageId)
 
@@ -288,6 +309,20 @@ export async function getMonthlyReports(clientId?: string): Promise<MonthlyRepor
 // =============================================
 // TEAM / PROFILES
 // =============================================
+export async function uploadAvatar(userId: string, file: File): Promise<string> {
+  const supabase = createClient()
+  const ext = file.name.split('.').pop() ?? 'jpg'
+  const path = `${userId}.${ext}`
+  const { error } = await supabase.storage
+    .from('avatars')
+    .upload(path, file, { upsert: true, contentType: file.type })
+  if (error) throw error
+  const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+  const url = `${data.publicUrl}?t=${Date.now()}`
+  await supabase.from('profiles').update({ avatar_url: url }).eq('id', userId)
+  return url
+}
+
 export async function getTeamMembers(): Promise<Profile[]> {
   const supabase = createClient()
   const { data, error } = await supabase
@@ -353,6 +388,19 @@ export async function getPortalToken(clientId: string): Promise<string | null> {
     .eq('client_id', clientId)
     .single()
   return data?.token ?? null
+}
+
+export async function getClientContentCounts(clientId: string): Promise<Record<string, number>> {
+  const supabase = createClient()
+  const { data } = await supabase
+    .from('content_items')
+    .select('status')
+    .eq('client_id', clientId)
+  const counts: Record<string, number> = {}
+  data?.forEach(item => {
+    counts[item.status] = (counts[item.status] ?? 0) + 1
+  })
+  return counts
 }
 
 export async function getClientPortalData(clientId: string) {

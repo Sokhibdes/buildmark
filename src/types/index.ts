@@ -73,7 +73,7 @@ export interface Task {
   title: string
   description?: string
   client_id?: string
-  assigned_to?: string
+  assigned_to?: string[]
   stage_id?: string
   status: TaskStatus
   priority: TaskPriority
@@ -233,8 +233,8 @@ export const ROLE_COLORS: Record<UserRole, string> = {
 }
 
 export const PACKAGE_LABELS: Record<ClientPackage, string> = {
-  starter: 'Starter (10 post/oy)',
-  standard: 'Standart (20 post/oy)',
+  starter: 'Starter (12 post/oy)',
+  standard: 'Standart (16 post/oy)',
   premium: 'Premium (30 post/oy)',
   full: 'Full (cheksiz)',
 }

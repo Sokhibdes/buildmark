@@ -2,8 +2,8 @@
 // src/app/admin/clients/page.tsx
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
-import { Search, Plus, Instagram, Send } from 'lucide-react'
-import { getClients } from '@/lib/queries'
+import { Search, Plus, Instagram, Send, Trash2 } from 'lucide-react'
+import { getClients, deleteClient } from '@/lib/queries'
 import type { Client } from '@/types'
 import { PACKAGE_LABELS } from '@/types'
 import s from '../admin.module.css'
@@ -21,6 +21,20 @@ export default function ClientsPage() {
   const [search, setSearch] = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [loading, setLoading] = useState(true)
+  const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null)
+  const [deletingId, setDeletingId] = useState<string | null>(null)
+
+  const handleDelete = async (client: Client) => {
+    setDeletingId(client.id)
+    try {
+      await deleteClient(client.id, client.company_name)
+      setClients(prev => prev.filter(c => c.id !== client.id))
+    } catch (err: any) {
+      alert(err.message ?? 'O\'chirishda xatolik yuz berdi')
+    }
+    setDeletingId(null)
+    setConfirmDeleteId(null)
+  }
 
   useEffect(() => {
     getClients().then(data => {
@@ -153,9 +167,38 @@ export default function ClientsPage() {
                       </span>
                     </td>
                     <td>
-                      <Link href={`/admin/clients/${client.id}`} className={`${s.btn} ${s.btnSm}`}>
-                        Ko'rish
-                      </Link>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                        <Link href={`/admin/clients/${client.id}`} className={`${s.btn} ${s.btnSm}`}>
+                          Ko'rish
+                        </Link>
+                        {confirmDeleteId === client.id ? (
+                          <>
+                            <button
+                              className={`${s.btn} ${s.btnSm}`}
+                              style={{ background: '#ef4444', color: '#fff', border: 'none' }}
+                              onClick={() => handleDelete(client)}
+                              disabled={deletingId === client.id}
+                            >
+                              {deletingId === client.id ? '...' : 'Ha'}
+                            </button>
+                            <button
+                              className={`${s.btn} ${s.btnSm}`}
+                              onClick={() => setConfirmDeleteId(null)}
+                            >
+                              Yo'q
+                            </button>
+                          </>
+                        ) : (
+                          <button
+                            className={`${s.btn} ${s.btnSm}`}
+                            style={{ color: '#ef4444', padding: '4px 8px' }}
+                            onClick={() => setConfirmDeleteId(client.id)}
+                            title="O'chirish"
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 )

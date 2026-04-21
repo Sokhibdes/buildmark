@@ -20,3 +20,8 @@ input, select, textarea { font-family: inherit; }
 ::-webkit-scrollbar-thumb:hover { background: #b8b6af; }
 
 ::selection { background: #dbeafe; color: #1e40af; }
+
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Avatar hover */
+div:hover > div > .avatar-cam { opacity: 1 !important; }

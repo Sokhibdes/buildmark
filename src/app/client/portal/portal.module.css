@@ -309,11 +309,39 @@
 
 /* Mobile */
 @media (max-width: 640px) {
-  .statsGrid { grid-template-columns: repeat(2, 1fr); }
+  .headerInner { padding: 10px 14px; gap: 10px; flex-wrap: wrap; }
+  .clientName { font-size: 13px; }
+  .clientSub { display: none; }
+  .headerRight { gap: 6px; flex-wrap: wrap; }
+  .pendingBadge { font-size: 10px; padding: 4px 9px; }
+  .newRequestBadge { font-size: 11px; padding: 5px 11px; }
+  .headerLinks { gap: 4px; }
+
+  .tabs { padding: 0 12px; }
+  .tab { padding: 10px 12px; font-size: 12px; }
+
+  .body { padding: 12px; }
+
+  .statsGrid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
+  .statNum { font-size: 22px; }
+
+  .sectionTitle { margin-top: 18px; }
+
+  .approvalCard { flex-direction: column; gap: 12px; padding: 14px; }
+  .approvalInfo { width: 100%; }
+  .approvalActions { flex-direction: row; width: 100%; }
+  .approvalBtn { flex: 1; justify-content: center; padding: 10px 10px; font-size: 13px; }
+  .approvalTitle { font-size: 15px; }
+  .feedbackInput { font-size: 14px; padding: 10px 12px; }
+
+  .newRequestBanner { flex-direction: column; gap: 10px; align-items: flex-start; padding: 14px; }
+
   .campStats { grid-template-columns: repeat(3, 1fr); }
   .reportStats { grid-template-columns: repeat(2, 1fr); }
-  .approvalCard { flex-direction: column; }
-  .approvalActions { flex-direction: row; width: 100%; }
-  .approvalBtn { flex: 1; justify-content: center; }
-  .body { padding: 16px; }
+
+  .campaignHeader { flex-direction: column; gap: 8px; }
+
+  .contentGrid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+
+  .empty { padding: 36px 16px; }
 }

@@ -3,8 +3,8 @@
 import { useState, useEffect } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Edit, ExternalLink, Copy, Check, Instagram, Send, Facebook } from 'lucide-react'
-import { getClientById, getTasks, getContentItems, getCampaigns, getMonthlyReports, updateClient, generatePortalToken, getPortalToken } from '@/lib/queries'
+import { ArrowLeft, Edit, ExternalLink, Instagram, Send, Facebook } from 'lucide-react'
+import { getClientById, getTasks, getContentItems, getCampaigns, getMonthlyReports, createClient_db } from '@/lib/queries'
 import type { Client, Task, ContentItem, Campaign, MonthlyReport } from '@/types'
 import { PACKAGE_LABELS } from '@/types'
 import s from '../../admin.module.css'
@@ -21,9 +21,16 @@ export default function ClientDetailPage() {
   const [reports, setReports] = useState<MonthlyReport[]>([])
   const [tab, setTab] = useState<Tab>('overview')
   const [loading, setLoading] = useState(true)
-  const [portalCopied, setPortalCopied] = useState(false)
-  const [enablingPortal, setEnablingPortal] = useState(false)
-  const [portalToken, setPortalToken] = useState<string | null>(null)
+  const [portalSaving, setPortalSaving] = useState(false)
+  const [portalEmail, setPortalEmail] = useState('')
+  const [portalPassword, setPortalPassword] = useState('')
+  const [portalErr, setPortalErr] = useState('')
+  const [portalDone, setPortalDone] = useState(false)
+  const [showPortalForm, setShowPortalForm] = useState(false)
+  const [showAddCompany, setShowAddCompany] = useState(false)
+  const [addCompanyForm, setAddCompanyForm] = useState({ company_name: '', industry: '', package: 'standard', contact_name: '', phone: '' })
+  const [addCompanySaving, setAddCompanySaving] = useState(false)
+  const [addCompanyErr, setAddCompanyErr] = useState('')
 
   useEffect(() => {
     Promise.all([
@@ -32,50 +39,58 @@ export default function ClientDetailPage() {
       getContentItems(id),
       getCampaigns(id),
       getMonthlyReports(id),
-      getPortalToken(id),
-    ]).then(([c, t, ct, camp, rep, token]) => {
+    ]).then(([c, t, ct, camp, rep]) => {
       setClient(c)
       setTasks(t)
       setContent(ct)
       setCampaigns(camp)
       setReports(rep)
-      setPortalToken(token)
+      if (c?.email) setPortalEmail(c.email)
+      if (c?.portal_access) setPortalDone(true)
       setLoading(false)
     })
   }, [id])
 
-  const handleEnablePortal = async () => {
-    if (!client) return
-    setEnablingPortal(true)
-    try {
-      const [updated, token] = await Promise.all([
-        updateClient(id, { portal_access: true }),
-        generatePortalToken(id),
-      ])
-      setClient(updated)
-      setPortalToken(token)
-    } catch {}
-    finally { setEnablingPortal(false) }
+  const handleCreatePortalLogin = async () => {
+    if (!portalEmail.trim() || !portalPassword) return
+    setPortalSaving(true)
+    setPortalErr('')
+    const res = await fetch('/api/portal/create-account', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ client_id: id, email: portalEmail.trim(), password: portalPassword }),
+    })
+    const data = await res.json()
+    if (!res.ok) { setPortalErr(data.error ?? 'Xatolik yuz berdi'); setPortalSaving(false); return }
+    setPortalDone(true)
+    setShowPortalForm(false)
+    setClient(prev => prev ? { ...prev, portal_access: true, email: portalEmail.trim() } : prev)
+    setPortalSaving(false)
   }
 
-  const handleRegenToken = async () => {
-    setEnablingPortal(true)
+  const handleAddCompany = async () => {
+    if (!addCompanyForm.company_name.trim()) { setAddCompanyErr("Kompaniya nomi majburiy"); return }
+    if (!client?.email) { setAddCompanyErr("Avval portal logini yarating"); return }
+    setAddCompanySaving(true)
+    setAddCompanyErr('')
     try {
-      const token = await generatePortalToken(id)
-      setPortalToken(token)
-    } catch {}
-    finally { setEnablingPortal(false) }
-  }
-
-  const portalUrl = portalToken
-    ? `${typeof window !== 'undefined' ? window.location.origin : ''}/client/portal?token=${portalToken}`
-    : ''
-
-  const copyPortalLink = () => {
-    if (!portalUrl) return
-    navigator.clipboard.writeText(portalUrl)
-    setPortalCopied(true)
-    setTimeout(() => setPortalCopied(false), 2000)
+      await createClient_db({
+        company_name: addCompanyForm.company_name.trim(),
+        industry: addCompanyForm.industry.trim() || client.industry,
+        package: addCompanyForm.package as any,
+        contact_name: addCompanyForm.contact_name.trim() || client.contact_name,
+        phone: addCompanyForm.phone.trim() || client.phone,
+        email: client.email,
+        status: 'active',
+        portal_access: true,
+        monthly_post_count: 0,
+      })
+      setShowAddCompany(false)
+      setAddCompanyForm({ company_name: '', industry: '', package: 'standard', contact_name: '', phone: '' })
+    } catch (err: any) {
+      setAddCompanyErr(err.message ?? 'Xatolik yuz berdi')
+    }
+    setAddCompanySaving(false)
   }
 
   if (loading) return <div className={s.empty}>Yuklanmoqda...</div>
@@ -212,40 +227,83 @@ export default function ClientDetailPage() {
             {/* Client portal */}
             <div className={s.card}>
               <div style={{ fontSize: 12, fontWeight: 500, color: '#888780', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.4px' }}>Mijoz portali</div>
-              {client.portal_access && portalToken ? (
+
+              {portalDone ? (
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 10 }}>
                     <span className={`${s.badge} ${s.badgeTeal}`}>Portal faol</span>
-                    <span style={{ fontSize: 12, color: '#888780' }}>Mijoz kira oladi</span>
                   </div>
-                  <div style={{ background: '#f5f5f3', borderRadius: 6, padding: '8px 10px', fontSize: 11, color: '#5f5e5a', wordBreak: 'break-all', marginBottom: 10 }}>
-                    {portalUrl}
+                  <div style={{ fontSize: 12, color: '#52525b', marginBottom: 12, background: '#f9f8f6', borderRadius: 8, padding: '8px 10px', lineHeight: 1.5 }}>
+                    <span style={{ color: '#a1a1aa' }}>Login: </span>
+                    <strong>{client.email}</strong>
                   </div>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button className={`${s.btn} ${s.btnSm}`} onClick={copyPortalLink} style={{ flex: 1, justifyContent: 'center' }}>
-                      {portalCopied ? <><Check size={12} /> Nusxalandi!</> : <><Copy size={12} /> Havolani nusxalash</>}
-                    </button>
-                    <a href={portalUrl} target="_blank" rel="noreferrer" className={`${s.btn} ${s.btnSm}`} style={{ justifyContent: 'center' }}>
-                      <ExternalLink size={12} /> Ochish
-                    </a>
-                  </div>
-                  <button className={`${s.btn} ${s.btnSm}`} onClick={handleRegenToken} disabled={enablingPortal}
-                    style={{ width: '100%', justifyContent: 'center', marginTop: 6, color: '#888780', fontSize: 11 }}>
-                    {enablingPortal ? 'Yangilanmoqda...' : 'Yangi havola yaratish'}
+                  <a
+                    href="/client/portal"
+                    target="_blank"
+                    rel="noreferrer"
+                    className={`${s.btn} ${s.btnSm}`}
+                    style={{ width: '100%', justifyContent: 'center' }}
+                  >
+                    <ExternalLink size={12} /> Portalni ochish
+                  </a>
+                  <button
+                    className={`${s.btn} ${s.btnSm}`}
+                    style={{ width: '100%', justifyContent: 'center', marginTop: 6, color: '#a1a1aa', fontSize: 11 }}
+                    onClick={() => { setShowPortalForm(true); setPortalDone(false) }}
+                  >
+                    Parolni o&apos;zgartirish / yangi login
                   </button>
+                  <div style={{ borderTop: '1px solid #f0ede6', marginTop: 12, paddingTop: 12 }}>
+                    <div style={{ fontSize: 11, color: '#a1a1aa', marginBottom: 8 }}>
+                      Xuddi shu login bilan boshqa kompaniya qo&apos;shish:
+                    </div>
+                    <button
+                      className={`${s.btn} ${s.btnSm}`}
+                      style={{ width: '100%', justifyContent: 'center', borderStyle: 'dashed' }}
+                      onClick={() => setShowAddCompany(true)}
+                    >
+                      + Kompaniya qo&apos;shish
+                    </button>
+                  </div>
+                </div>
+              ) : showPortalForm ? (
+                <div>
+                  <div style={{ marginBottom: 10 }}>
+                    <label className={s.label}>Email</label>
+                    <input className={s.input} type="email" value={portalEmail}
+                      onChange={e => setPortalEmail(e.target.value)} placeholder="mijoz@email.com" />
+                  </div>
+                  <div style={{ marginBottom: 12 }}>
+                    <label className={s.label}>Parol</label>
+                    <input className={s.input} type="password" value={portalPassword}
+                      onChange={e => setPortalPassword(e.target.value)} placeholder="Kamida 6 ta belgi" />
+                  </div>
+                  {portalErr && <div className={s.formError} style={{ marginBottom: 10 }}>{portalErr}</div>}
+                  <div style={{ display: 'flex', gap: 8 }}>
+                    <button className={`${s.btn} ${s.btnSm}`}
+                      onClick={() => { setShowPortalForm(false); if (client.portal_access) setPortalDone(true) }}
+                      style={{ flex: 1, justifyContent: 'center' }}>
+                      Bekor
+                    </button>
+                    <button className={`${s.btn} ${s.btnPrimary} ${s.btnSm}`}
+                      onClick={handleCreatePortalLogin}
+                      disabled={portalSaving || !portalEmail || !portalPassword}
+                      style={{ flex: 1, justifyContent: 'center' }}>
+                      {portalSaving ? 'Saqlanmoqda...' : 'Saqlash'}
+                    </button>
+                  </div>
                 </div>
               ) : (
                 <div>
                   <div style={{ fontSize: 13, color: '#888780', marginBottom: 12, lineHeight: 1.5 }}>
-                    Portal yoqilganda, mijoz o'z vazifalarini ko'ra oladi, kontent planlarini tasdiqlashi va tayyor kontentlarni ko'rishi mumkin.
+                    Mijozga email va parol bering — portal orqali kira oladi.
                   </div>
                   <button
                     className={`${s.btn} ${s.btnPrimary}`}
                     style={{ width: '100%', justifyContent: 'center' }}
-                    onClick={handleEnablePortal}
-                    disabled={enablingPortal}
+                    onClick={() => setShowPortalForm(true)}
                   >
-                    {enablingPortal ? 'Yoqilmoqda...' : '+ Portal yoqish'}
+                    + Login yaratish
                   </button>
                 </div>
               )}
@@ -430,6 +488,77 @@ export default function ClientDetailPage() {
               </div>
             ))
           )}
+        </div>
+      )}
+
+      {/* Kompaniya qo'shish modali */}
+      {showAddCompany && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 200, padding: 16 }}>
+          <div style={{ background: '#fff', borderRadius: 14, padding: 24, width: '100%', maxWidth: 440, boxShadow: '0 20px 60px rgba(0,0,0,0.18)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 18 }}>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#18181b' }}>Yangi kompaniya qo&apos;shish</div>
+              <button onClick={() => setShowAddCompany(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#a1a1aa', padding: 4 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+
+            <div style={{ fontSize: 12, color: '#a1a1aa', background: '#f9f8f6', borderRadius: 8, padding: '8px 12px', marginBottom: 16 }}>
+              Portal logini: <strong>{client?.email}</strong> — xuddi shu email orqali kira oladi
+            </div>
+
+            <div className={s.formGroup}>
+              <label className={s.label}>Kompaniya nomi *</label>
+              <input className={s.input} value={addCompanyForm.company_name}
+                onChange={e => setAddCompanyForm(p => ({ ...p, company_name: e.target.value }))}
+                placeholder="Yangi kompaniya nomi" autoFocus />
+            </div>
+            <div className={s.grid2}>
+              <div className={s.formGroup}>
+                <label className={s.label}>Soha</label>
+                <input className={s.input} value={addCompanyForm.industry}
+                  onChange={e => setAddCompanyForm(p => ({ ...p, industry: e.target.value }))}
+                  placeholder={client?.industry ?? 'Qurilish'} />
+              </div>
+              <div className={s.formGroup}>
+                <label className={s.label}>Paket</label>
+                <select className={s.select} value={addCompanyForm.package}
+                  onChange={e => setAddCompanyForm(p => ({ ...p, package: e.target.value }))}>
+                  <option value="starter">Starter</option>
+                  <option value="standard">Standard</option>
+                  <option value="premium">Premium</option>
+                  <option value="full">Full</option>
+                </select>
+              </div>
+            </div>
+            <div className={s.grid2}>
+              <div className={s.formGroup}>
+                <label className={s.label}>Mas'ul shaxs</label>
+                <input className={s.input} value={addCompanyForm.contact_name}
+                  onChange={e => setAddCompanyForm(p => ({ ...p, contact_name: e.target.value }))}
+                  placeholder={client?.contact_name ?? ''} />
+              </div>
+              <div className={s.formGroup}>
+                <label className={s.label}>Telefon</label>
+                <input className={s.input} value={addCompanyForm.phone}
+                  onChange={e => setAddCompanyForm(p => ({ ...p, phone: e.target.value }))}
+                  placeholder={client?.phone ?? ''} />
+              </div>
+            </div>
+
+            {addCompanyErr && (
+              <div style={{ fontSize: 12, color: '#dc2626', background: '#fee2e2', borderRadius: 8, padding: '8px 12px', marginBottom: 12 }}>
+                {addCompanyErr}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end' }}>
+              <button className={s.btn} onClick={() => setShowAddCompany(false)}>Bekor</button>
+              <button className={`${s.btn} ${s.btnPrimary}`}
+                onClick={handleAddCompany} disabled={addCompanySaving || !addCompanyForm.company_name}>
+                {addCompanySaving ? 'Saqlanmoqda...' : 'Qo\'shish'}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>

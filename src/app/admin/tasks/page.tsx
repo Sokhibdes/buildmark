@@ -5,7 +5,7 @@ import { getTasks, getWorkflowStages, updateTask, createTask, getClients, getTea
 import type { TaskComment } from '@/lib/queries'
 import { createClient } from '@/lib/supabase/client'
 import type { Task, WorkflowStage, Client, Profile } from '@/types'
-import { TASK_TYPE_LABELS } from '@/types'
+import { TASK_TYPE_LABELS, ROLE_LABELS } from '@/types'
 import s from '../admin.module.css'
 import k from './kanban.module.css'
 
@@ -35,12 +35,102 @@ function elapsed(isoDate?: string): string {
 
 type FormData = {
   title: string; description: string; task_type: string
-  priority: string; client_id: string; assigned_to: string
+  priority: string; client_id: string; assigned_to: string[]
   stage_id: string; due_date: string; content_url: string
 }
 const EMPTY: FormData = {
   title: '', description: '', task_type: '', priority: 'medium',
-  client_id: '', assigned_to: '', stage_id: '', due_date: '', content_url: '',
+  client_id: '', assigned_to: [], stage_id: '', due_date: '', content_url: '',
+}
+
+function AssigneeSelect({ selected, team, onChange }: {
+  selected: string[]
+  team: Profile[]
+  onChange: (ids: string[]) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const ref = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false)
+    }
+    document.addEventListener('mousedown', handler)
+    return () => document.removeEventListener('mousedown', handler)
+  }, [])
+
+  const toggle = (id: string) =>
+    onChange(selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id])
+
+  const selectedMembers = team.filter(m => selected.includes(m.id))
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button
+        type="button"
+        onClick={() => setOpen(v => !v)}
+        style={{
+          width: '100%', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 5,
+          minHeight: 36, padding: '5px 10px',
+          border: '1px solid #e8e6df', borderRadius: 7, background: '#fff',
+          cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, textAlign: 'left',
+        }}
+      >
+        {selectedMembers.length === 0
+          ? <span style={{ color: '#a1a1aa' }}>— Tanlang</span>
+          : selectedMembers.map(m => (
+            <span key={m.id} style={{
+              background: '#e6f1fb', color: '#185fa5',
+              padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 500,
+            }}>
+              {m.full_name.split(' ')[0]}
+            </span>
+          ))
+        }
+      </button>
+
+      {open && (
+        <div style={{
+          position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
+          background: '#fff', border: '1px solid #e8e6df', borderRadius: 8,
+          boxShadow: '0 4px 16px rgba(0,0,0,0.1)', marginTop: 4,
+          maxHeight: 220, overflowY: 'auto',
+        }}>
+          {team.map(member => {
+            const isSel = selected.includes(member.id)
+            return (
+              <div key={member.id} onClick={() => toggle(member.id)} style={{
+                display: 'flex', alignItems: 'center', gap: 10,
+                padding: '8px 12px', cursor: 'pointer',
+                background: isSel ? '#f0f7ff' : 'transparent',
+              }}>
+                <div style={{
+                  width: 16, height: 16, flexShrink: 0,
+                  border: `2px solid ${isSel ? '#185fa5' : '#d4d2cb'}`,
+                  borderRadius: 4, background: isSel ? '#185fa5' : 'transparent',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>
+                  {isSel && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L4 7L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                </div>
+                <div style={{
+                  width: 26, height: 26, borderRadius: 7, flexShrink: 0,
+                  background: '#e6f1fb', color: '#185fa5',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  fontSize: 10, fontWeight: 700,
+                }}>
+                  {member.full_name.slice(0, 2).toUpperCase()}
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: '#18181b' }}>{member.full_name}</div>
+                  <div style={{ fontSize: 10, color: '#a1a1aa' }}>{ROLE_LABELS[member.role]}</div>
+                </div>
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
 }
 
 export default function TasksPage() {
@@ -85,7 +175,7 @@ export default function TasksPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tasks' },
-        () => { getTasks().then(data => setTasks([...data])).catch(() => {}) }
+        () => { if (draggingRef.current) return; getTasks().then(data => setTasks([...data])).catch(() => {}) }
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
@@ -113,13 +203,14 @@ export default function TasksPage() {
       const created = await createTask({
         title: form.title.trim(), description: form.description || undefined,
         task_type: (form.task_type as any) || undefined, priority: (form.priority as any) || 'medium',
-        client_id: form.client_id || undefined, assigned_to: form.assigned_to || undefined,
+        client_id: form.client_id || undefined,
+        assigned_to: form.assigned_to.length > 0 ? form.assigned_to : undefined,
         stage_id: form.stage_id || undefined, due_date: form.due_date || undefined,
         content_url: form.content_url || undefined, status: 'todo', visible_to_client: false,
       })
       setTasks(prev => [created, ...prev])
       setShowNew(false)
-    } catch { setFormErr('Saqlashda xatolik') }
+    } catch (err: any) { setFormErr(err?.message ?? 'Saqlashda xatolik') }
     finally { setSaving(false) }
   }
 
@@ -128,7 +219,7 @@ export default function TasksPage() {
     setDetail(task)
     setEdit({
       title: task.title, description: task.description ?? '', task_type: task.task_type ?? '',
-      priority: task.priority, client_id: task.client_id ?? '', assigned_to: task.assigned_to ?? '',
+      priority: task.priority, client_id: task.client_id ?? '', assigned_to: task.assigned_to ?? [],
       stage_id: task.stage_id ?? '', due_date: task.due_date?.slice(0, 10) ?? '',
       content_url: task.content_url ?? '',
     })
@@ -155,7 +246,8 @@ export default function TasksPage() {
       const updated = await updateTask(detail.id, {
         title: edit.title.trim(), description: edit.description || undefined,
         task_type: (edit.task_type as any) || undefined, priority: edit.priority as any,
-        client_id: edit.client_id || undefined, assigned_to: edit.assigned_to || undefined,
+        client_id: edit.client_id || undefined,
+        assigned_to: edit.assigned_to.length > 0 ? edit.assigned_to : undefined,
         stage_id: edit.stage_id || undefined, due_date: edit.due_date || undefined,
         content_url: edit.content_url || undefined,
       })
@@ -203,11 +295,12 @@ export default function TasksPage() {
           </select>
         </div>
         <div className={s.formGroup}>
-          <label className={s.label}>Mas'ul xodim</label>
-          <select className={s.select} value={f.assigned_to} onChange={e => set(p => ({ ...p, assigned_to: e.target.value }))}>
-            <option value="">— Tanlang</option>
-            {team.map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)}
-          </select>
+          <label className={s.label}>Mas'ul xodimlar</label>
+          <AssigneeSelect
+            selected={f.assigned_to}
+            team={team}
+            onChange={ids => set(p => ({ ...p, assigned_to: ids }))}
+          />
         </div>
       </div>
       <div className={s.grid2}>
@@ -254,9 +347,7 @@ export default function TasksPage() {
         <div className={k.wfSteps}>
           {stages.map((st, i) => (
             <div key={st.id} className={k.wfStep}>
-              <div className={k.wfNum} style={{ background: `${STAGE_COLORS[st.color] ?? '#888'}22`, color: STAGE_COLORS[st.color] ?? '#888' }}>
-                {st.order_index}
-              </div>
+              <div className={k.wfDot} style={{ background: STAGE_COLORS[st.color] ?? '#888' }} />
               <div className={k.wfName}>
                 {st.name}
                 {st.visible_to_client && <Eye size={10} style={{ marginLeft: 4, color: '#185fa5', verticalAlign: 'middle' }} />}
@@ -289,8 +380,18 @@ export default function TasksPage() {
                   <div key={task.id}
                     className={`${k.taskCard} ${dragging === task.id ? k.dragging : ''}`}
                     draggable
-                    onDragStart={e => { e.dataTransfer.setData('taskId', task.id); draggingRef.current = task.id; setDragging(task.id) }}
-                    onDragEnd={() => { setTimeout(() => { draggingRef.current = null }, 100); setDragging(null) }}
+                    onDragStart={e => {
+                      e.dataTransfer.setData('taskId', task.id)
+                      e.dataTransfer.effectAllowed = 'move'
+                      draggingRef.current = task.id
+                      requestAnimationFrame(() => setDragging(task.id))
+                    }}
+                    onDragEnd={() => {
+                      draggingRef.current = null
+                      setDragging(null)
+                    }}
+                    onDragOver={e => e.preventDefault()}
+                    onDrop={e => handleDrop(e, stage.id)}
                     onClick={() => openDetail(task)}
                   >
                     {task.client_approved && stageOf(task.stage_id)?.slug === 'posting_check' && (
@@ -311,8 +412,30 @@ export default function TasksPage() {
                       {isPostingCheck(task) && task.content_url && (
                         <span className={k.taskLink}><Link size={9} /> Havola</span>
                       )}
-                      {(task as any).assignee && (
-                        <div className={k.taskAssignee}><User size={10} />{(task as any).assignee.full_name.split(' ')[0]}</div>
+                      {task.assigned_to && task.assigned_to.length > 0 && (
+                        <div style={{ display: 'flex', alignItems: 'center' }}>
+                          {task.assigned_to.slice(0, 3).map((id, i) => {
+                            const m = team.find(t => t.id === id)
+                            if (!m) return null
+                            return (
+                              <div key={id} title={m.full_name} style={{
+                                width: 20, height: 20, borderRadius: '50%',
+                                background: '#e6f1fb', color: '#185fa5',
+                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                fontSize: 8, fontWeight: 700,
+                                marginLeft: i > 0 ? -5 : 0,
+                                border: '1.5px solid #fff', flexShrink: 0,
+                              }}>
+                                {m.full_name.slice(0, 2).toUpperCase()}
+                              </div>
+                            )
+                          })}
+                          {task.assigned_to.length > 3 && (
+                            <div style={{ fontSize: 9, color: '#888780', marginLeft: 4, fontWeight: 600 }}>
+                              +{task.assigned_to.length - 3}
+                            </div>
+                          )}
+                        </div>
                       )}
                       {task.due_date && (
                         <div className={`${k.taskDue} ${new Date(task.due_date) < new Date() ? k.taskDueOverdue : ''}`}>
@@ -337,7 +460,7 @@ export default function TasksPage() {
               <div className={k.modalTitle}>Yangi vazifa</div>
               <button className={k.modalClose} onClick={() => setShowNew(false)}><X size={16} /></button>
             </div>
-            <form onSubmit={handleCreate}>
+            <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
               <div className={k.modalBody}>
                 <FormFields f={form} set={setForm} />
                 {formErr && <div className={k.formError}>{formErr}</div>}
@@ -402,13 +525,15 @@ export default function TasksPage() {
                       {clients.map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)}
                     </select>
                   </div>
-                  <div className={k.detailRow}>
-                    <div className={k.detailRowLabel}><User size={12} /> Mas'ul</div>
-                    <select className={k.detailSelect} value={edit.assigned_to}
-                      onChange={e => { setEdit(p => ({ ...p, assigned_to: e.target.value })); setChanged(true) }}>
-                      <option value="">—</option>
-                      {team.map(m => <option key={m.id} value={m.id}>{m.full_name}</option>)}
-                    </select>
+                  <div className={k.detailRow} style={{ alignItems: 'flex-start' }}>
+                    <div className={k.detailRowLabel} style={{ paddingTop: 8 }}><User size={12} /> Mas'ul</div>
+                    <div style={{ flex: 1 }}>
+                      <AssigneeSelect
+                        selected={edit.assigned_to}
+                        team={team}
+                        onChange={ids => { setEdit(p => ({ ...p, assigned_to: ids })); setChanged(true) }}
+                      />
+                    </div>
                   </div>
                   <div className={k.detailRow}>
                     <div className={k.detailRowLabel}><Calendar size={12} /> Muddat</div>

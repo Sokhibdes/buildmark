@@ -2,25 +2,43 @@
 // src/app/admin/reports/page.tsx
 import { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
-import { getClients, getMonthlyReports, getCampaigns } from '@/lib/queries'
-import type { Client, MonthlyReport, Campaign } from '@/types'
+import { getClients, getMonthlyReports, getCampaigns, getContentItems } from '@/lib/queries'
+import type { Client, MonthlyReport, Campaign, ContentItem } from '@/types'
 import s from '../admin.module.css'
 
 export default function ReportsPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [reports, setReports] = useState<MonthlyReport[]>([])
   const [campaigns, setCampaigns] = useState<Campaign[]>([])
+  const [contentItems, setContentItems] = useState<ContentItem[]>([])
   const [selectedClient, setSelectedClient] = useState<string>('all')
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    Promise.all([getClients(), getMonthlyReports(), getCampaigns()]).then(([c, r, camp]) => {
+    Promise.all([getClients(), getMonthlyReports(), getCampaigns(), getContentItems()]).then(([c, r, camp, cont]) => {
       setClients(c)
       setReports(r)
       setCampaigns(camp)
+      setContentItems(cont)
       setLoading(false)
     })
   }, [])
+
+  const contentStatsForReport = (clientId: string, month: string) => {
+    const monthStr = month.slice(0, 7) // YYYY-MM
+    const items = contentItems.filter(c => {
+      if (c.client_id !== clientId) return false
+      const date = c.published_at ?? c.scheduled_for ?? c.created_at
+      return date.slice(0, 7) === monthStr
+    })
+    return {
+      published: items.filter(c => c.status === 'published').length,
+      approved: items.filter(c => c.status === 'approved').length,
+      scheduled: items.filter(c => c.status === 'scheduled').length,
+      pending: items.filter(c => c.status === 'client_approval').length,
+      total: items.length,
+    }
+  }
 
   const filteredReports = selectedClient === 'all'
     ? reports
@@ -140,7 +158,10 @@ export default function ReportsPage() {
               <tr>
                 <th>Mijoz</th>
                 <th>Oy</th>
-                <th>Postlar</th>
+                <th>Nashr qilindi</th>
+                <th>Tasdiqlangan</th>
+                <th>Rejalashtirilgan</th>
+                <th>Kutmoqda</th>
                 <th>Qamrov</th>
                 <th>Obunachi o'sishi</th>
                 <th>Leadlar</th>
@@ -151,14 +172,18 @@ export default function ReportsPage() {
             <tbody>
               {filteredReports.map(report => {
                 const client = clients.find(c => c.id === report.client_id)
+                const cs = contentStatsForReport(report.client_id, report.month)
                 return (
                   <tr key={report.id}>
                     <td style={{ fontWeight: 500 }}>{client?.company_name ?? '—'}</td>
                     <td>{new Date(report.month).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long' })}</td>
                     <td>
-                      <span style={{ fontWeight: 500 }}>{report.posts_published}</span>
-                      <span style={{ color: '#b4b2a9' }}>/{report.posts_planned}</span>
+                      <span style={{ fontWeight: 600, color: '#0f6e56' }}>{cs.published}</span>
+                      <span style={{ color: '#b4b2a9', fontSize: 11 }}> / {report.posts_planned}</span>
                     </td>
+                    <td><span style={{ fontWeight: 500, color: '#185fa5' }}>{cs.approved}</span></td>
+                    <td><span style={{ fontWeight: 500, color: '#534ab7' }}>{cs.scheduled}</span></td>
+                    <td><span style={{ fontWeight: 500, color: '#854f0b' }}>{cs.pending}</span></td>
                     <td>{report.total_reach.toLocaleString()}</td>
                     <td style={{ color: report.follower_growth >= 0 ? '#0f6e56' : '#993c1d', fontWeight: 500 }}>
                       {report.follower_growth >= 0 ? '+' : ''}{report.follower_growth}
