@@ -1,4 +1,3 @@
-// src/middleware.ts
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
 
@@ -11,7 +10,7 @@ export async function middleware(request: NextRequest) {
     {
       cookies: {
         getAll() { return request.cookies.getAll() },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet: { name: string; value: string; options?: any }[]) {
           cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
           supabaseResponse = NextResponse.next({ request })
           cookiesToSet.forEach(({ name, value, options }) =>
@@ -25,17 +24,14 @@ export async function middleware(request: NextRequest) {
   const { data: { user } } = await supabase.auth.getUser()
   const { pathname } = request.nextUrl
 
-  // /admin/* sahifalarini himoya qilish
   if (pathname.startsWith('/admin') && !user) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  // Login sahifasida agar kirgan bo'lsa
   if (pathname === '/login' && user) {
     return NextResponse.redirect(new URL('/admin/dashboard', request.url))
   }
 
-  // Root redirect
   if (pathname === '/') {
     if (user) return NextResponse.redirect(new URL('/admin/dashboard', request.url))
     return NextResponse.redirect(new URL('/login', request.url))
