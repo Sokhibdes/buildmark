@@ -1,8 +1,10 @@
 'use client'
 import { useState } from 'react'
+import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
 
 export default function LoginPage() {
+  const router = useRouter()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [loading, setLoading] = useState(false)
@@ -13,13 +15,22 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
     const supabase = createClient()
-    const { error: err } = await supabase.auth.signInWithPassword({ email, password })
+    const { data, error: err } = await supabase.auth.signInWithPassword({ email, password })
     if (err) {
       setError("Email yoki parol noto'g'ri")
       setLoading(false)
       return
     }
-    window.location.replace('/admin/dashboard')
+
+    if (!data.session) {
+      setError('Sessiya yaratilmadi, qaytadan urinib ko\'ring')
+      setLoading(false)
+      return
+    }
+
+    router.replace('/admin/dashboard')
+    router.refresh()
+    setLoading(false)
   }
 
   return (

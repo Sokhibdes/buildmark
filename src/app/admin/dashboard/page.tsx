@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react'
 import Link from 'next/link'
 import { AlertCircle, Clock, CheckCircle2, TrendingUp, Users, Megaphone, FileCheck } from 'lucide-react'
-import { getDashboardStats, getClients, getTasks } from '@/lib/queries'
+import { getDashboardStats, getClients } from '@/lib/queries'
 import type { DashboardStats, Client, Task } from '@/types'
 import s from '../admin.module.css'
 
@@ -12,21 +12,29 @@ export default function DashboardPage() {
   const [clients, setClients] = useState<Client[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
     Promise.all([
       getDashboardStats(),
       getClients(),
-      getTasks({ status: 'in_progress' }),
-    ]).then(([s, c, t]) => {
-      setStats(s)
-      setClients(c.slice(0, 5))
-      setTasks(t.slice(0, 8))
-      setLoading(false)
-    })
+    ])
+      .then(([s, c]) => {
+        setStats(s)
+        setClients(c.slice(0, 5))
+        setTasks([])
+      })
+      .catch((err) => {
+        console.error('Dashboard load error:', err)
+        setLoadError('Ma\'lumotlarni yuklashda xatolik yuz berdi')
+      })
+      .finally(() => {
+        setLoading(false)
+      })
   }, [])
 
   if (loading) return <div className={s.empty}>Yuklanmoqda...</div>
+  if (loadError) return <div className={s.empty}>{loadError}</div>
 
   return (
     <div>

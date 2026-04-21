@@ -97,7 +97,6 @@ export async function getTasks(filters?: {
     .select(`
       *,
       client:clients(id, company_name, logo_url),
-      assignee:profiles!tasks_assigned_to_fkey(id, full_name, role),
       stage:workflow_stages(id, name, slug, color)
     `)
     .order('created_at', { ascending: false })

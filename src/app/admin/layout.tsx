@@ -44,14 +44,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   useEffect(() => {
     const supabase = createClient()
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!session) {
-        router.push('/login')
-      } else {
+    supabase.auth.getSession()
+      .then(({ data: { session } }) => {
+        if (!session) {
+          router.push('/login')
+          return
+        }
         setUserName(session.user.email?.split('@')[0] ?? 'Admin')
-      }
-      setChecking(false)
-    })
+      })
+      .catch(() => {
+        router.push('/login')
+      })
+      .finally(() => {
+        setChecking(false)
+      })
   }, [router])
 
   const handleLogout = async () => {
