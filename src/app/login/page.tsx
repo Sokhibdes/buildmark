@@ -1,6 +1,7 @@
 'use client'
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 
 export default function LoginPage() {
   const [email, setEmail] = useState('')
@@ -14,30 +15,20 @@ export default function LoginPage() {
     setLoading(true)
     setError('')
 
-    const res = await fetch(
-      `${process.env.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/token?grant_type=password`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!,
-          'Authorization': `Bearer ${process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!}`,
-        },
-        body: JSON.stringify({ email, password }),
-      }
-    )
+    const supabase = createClient()
+    const { error: authError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
+    })
 
-    const data = await res.json()
-    console.log('Response:', data)
-
-    if (!res.ok || data.error) {
-      setError(data.error_description || data.message || "Email yoki parol noto'g'ri")
+    if (authError) {
+      setError("Email yoki parol noto'g'ri")
       setLoading(false)
       return
     }
 
-    localStorage.setItem('sb-token', data.access_token)
     router.push('/admin/dashboard')
+    router.refresh()
   }
 
   return (
@@ -53,7 +44,6 @@ export default function LoginPage() {
           <div style={{ fontSize: 22, fontWeight: 700, color: '#1a1a18', marginBottom: 4 }}>BuildMark</div>
           <div style={{ fontSize: 13, color: '#888780' }}>Marketing agentlik tizimi</div>
         </div>
-
         <form onSubmit={handleLogin}>
           <div style={{ marginBottom: 14 }}>
             <label style={{ display: 'block', fontSize: 12, fontWeight: 500, color: '#5f5e5a', marginBottom: 5 }}>Email</label>
