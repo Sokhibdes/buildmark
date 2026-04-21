@@ -5,7 +5,7 @@ import { useRouter } from 'next/navigation'
 import Link from 'next/link'
 import { ArrowLeft } from 'lucide-react'
 import { createClient_db } from '@/lib/queries'
-import type { ClientPackage } from '@/types'
+import type { ClientPackage, ClientStatus } from '@/types'
 import { PACKAGE_LABELS } from '@/types'
 import s from '../../admin.module.css'
 
@@ -20,7 +20,7 @@ export default function NewClientPage() {
     email: '',
     industry: 'construction',
     package: 'standard' as ClientPackage,
-    status: 'active',
+    status: 'active' as ClientStatus,
     monthly_post_count: 29,
     instagram_url: '',
     telegram_url: '',
