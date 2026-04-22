@@ -108,6 +108,47 @@
 .taskTags { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
 .tag { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 20px; background: #f4f3f0; color: #71717a; }
 .tagTimer { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #92400e; font-weight: 600; background: #fef3c7; padding: 3px 9px; border-radius: 20px; }
+.tagTimerStart {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; color: #065f46; font-weight: 700;
+  background: #d1fae5; border: 1px solid #a7f3d0;
+  padding: 3px 9px; border-radius: 20px;
+  cursor: pointer; font-family: inherit;
+  transition: background 0.15s;
+}
+.tagTimerStart:hover { background: #a7f3d0; }
+.tagPauseBtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
+  background: #fef3c7; border: 1px solid #fde68a;
+  color: #92400e; cursor: pointer; transition: background 0.15s;
+}
+.tagPauseBtn:hover { background: #fde68a; }
+.tagResumeBtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
+  background: #d1fae5; border: 1px solid #a7f3d0;
+  color: #065f46; cursor: pointer; transition: background 0.15s;
+}
+.tagResumeBtn:hover { background: #a7f3d0; }
+.tagTimerPaused {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; color: #92400e; font-weight: 700;
+  background: #fef3c7; border: 1px solid #fde68a;
+  padding: 3px 9px; border-radius: 20px;
+}
+.tagStopBtn {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 20px; height: 20px; border-radius: 6px; flex-shrink: 0;
+  background: #fee2e2; border: 1px solid #fecaca;
+  color: #dc2626; cursor: pointer; transition: background 0.15s;
+}
+.tagStopBtn:hover { background: #fecaca; }
+.tagTimerDone {
+  display: inline-flex; align-items: center; gap: 4px;
+  font-size: 10px; color: #065f46; font-weight: 700;
+  background: #d1fae5; padding: 3px 9px; border-radius: 20px;
+}
 .tagLink { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #5b21b6; font-weight: 600; background: #ede9fe; padding: 3px 9px; border-radius: 20px; }
 
 .taskHeader { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 6px; }
@@ -145,6 +186,51 @@
   font-size: 12px; color: #92400e; font-weight: 600;
   background: #fef3c7; border: 1px solid #fde68a;
   border-radius: 8px; padding: 7px 12px; margin: 12px 0 4px;
+}
+.timerStartBtn {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; padding: 10px 16px; border-radius: 10px;
+  background: #ecfdf5; border: 1.5px solid #a7f3d0;
+  color: #065f46; font-size: 13px; font-weight: 700;
+  cursor: pointer; font-family: inherit;
+  transition: all 0.15s; margin: 10px 0 4px;
+}
+.timerStartBtn:hover { background: #d1fae5; border-color: #6ee7b7; }
+.timerPauseBtn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 8px; flex-shrink: 0;
+  background: #fef3c7; border: 1.5px solid #fde68a;
+  color: #92400e; font-size: 12px; font-weight: 700;
+  cursor: pointer; font-family: inherit; transition: all 0.15s;
+}
+.timerPauseBtn:hover { background: #fde68a; }
+.timerResumeBtn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 8px; flex-shrink: 0;
+  background: #ecfdf5; border: 1.5px solid #a7f3d0;
+  color: #065f46; font-size: 12px; font-weight: 700;
+  cursor: pointer; font-family: inherit; transition: all 0.15s;
+}
+.timerResumeBtn:hover { background: #d1fae5; }
+.timerPausedBadge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: #92400e; font-weight: 600;
+  background: #fef3c7; border: 1px solid #fde68a;
+  border-radius: 8px; padding: 7px 12px; margin: 10px 0 4px;
+}
+.timerStopBtn {
+  display: flex; align-items: center; gap: 6px;
+  padding: 7px 14px; border-radius: 8px; flex-shrink: 0;
+  background: #fee2e2; border: 1.5px solid #fecaca;
+  color: #dc2626; font-size: 12px; font-weight: 700;
+  cursor: pointer; font-family: inherit; transition: all 0.15s;
+}
+.timerStopBtn:hover { background: #fecaca; border-color: #f87171; }
+.timerDoneBadge {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: #065f46; font-weight: 600;
+  background: #d1fae5; border: 1px solid #a7f3d0;
+  border-radius: 8px; padding: 7px 12px; margin: 10px 0 4px;
 }
 
 /* Client approved */

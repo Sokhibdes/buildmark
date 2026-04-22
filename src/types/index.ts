@@ -85,6 +85,10 @@ export interface Task {
   client_notes?: string
   content_url?: string
   stage_entered_at?: string
+  timer_started_at?: string
+  timer_paused_at?: string
+  timer_stopped_at?: string
+  timer_total_paused_ms?: number
   created_by?: string
   created_at: string
   updated_at: string

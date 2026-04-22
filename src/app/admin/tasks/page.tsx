@@ -1,7 +1,7 @@
 'use client'
-import { useState, useEffect, useRef } from 'react'
-import { Plus, AlertCircle, Clock, User, X, Calendar, Tag, Users, Layers, Eye, Link, CheckCircle } from 'lucide-react'
-import { getTasks, getWorkflowStages, updateTask, createTask, getClients, getTeamMembers, getTaskComments, createStaffComment, getCurrentUser } from '@/lib/queries'
+import { useState, useEffect, useRef, useCallback } from 'react'
+import { Plus, AlertCircle, Clock, User, X, Calendar, Tag, Users, Layers, Eye, Link, CheckCircle, Play, Square, Pause } from 'lucide-react'
+import { getTasks, getWorkflowStages, updateTask, createTask, getClients, getTeamMembers, getTaskComments, createStaffComment, getCurrentUser, startTaskTimer, pauseTaskTimer, resumeTaskTimer, stopTaskTimer } from '@/lib/queries'
 import type { TaskComment } from '@/lib/queries'
 import { createClient } from '@/lib/supabase/client'
 import type { Task, WorkflowStage, Client, Profile } from '@/types'
@@ -11,6 +11,30 @@ import darkS from '../admin-dark.module.css'
 import lightK from './kanban.module.css'
 import darkK from './kanban-dark.module.css'
 import { useTheme } from '@/lib/theme-context'
+
+function playSound(type: 'tasdiqlandi' | 'posting_approved') {
+  try {
+    const ctx = new (window.AudioContext || (window as any).webkitAudioContext)()
+    const note = (freq: number, start: number, dur: number, vol = 0.25) => {
+      const osc  = ctx.createOscillator()
+      const gain = ctx.createGain()
+      osc.type = 'sine'
+      osc.frequency.value = freq
+      gain.gain.setValueAtTime(vol, ctx.currentTime + start)
+      gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + start + dur)
+      osc.connect(gain); gain.connect(ctx.destination)
+      osc.start(ctx.currentTime + start); osc.stop(ctx.currentTime + start + dur)
+    }
+    if (type === 'tasdiqlandi') {
+      note(523, 0,    0.35)   // C5
+      note(659, 0.18, 0.35)   // E5
+      note(784, 0.36, 0.55)   // G5
+    } else {
+      note(880,  0,    0.15, 0.3)   // A5  — posting_check uchun boshqacha ikki pip
+      note(1046, 0.22, 0.15, 0.25)  // C6
+    }
+  } catch {}
+}
 
 const PRIORITY_ICON: Record<string, React.ReactNode> = {
   urgent: <AlertCircle size={12} color="#d85a30" />,
@@ -38,6 +62,30 @@ function elapsed(isoDate?: string): string {
   if (d > 0) return `${d}k ${h % 24}s`
   if (h > 0) return `${h}s`
   return '<1s'
+}
+
+function elapsedTimer(startedAt: string, totalPausedMs = 0, asOf?: string): string {
+  const endMs = asOf ? new Date(asOf).getTime() : Date.now()
+  const ms = Math.max(0, endMs - new Date(startedAt).getTime() - totalPausedMs)
+  const totalSecs = Math.floor(ms / 1000)
+  const h = Math.floor(totalSecs / 3600)
+  const m = Math.floor((totalSecs % 3600) / 60)
+  const s = totalSecs % 60
+  if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+  return `${m}:${String(s).padStart(2, '0')}`
+}
+
+function formatDuration(startedAt: string, stoppedAt: string, totalPausedMs = 0): string {
+  return elapsedTimer(startedAt, totalPausedMs, stoppedAt)
+}
+
+function TimerDisplay({ startedAt, totalPausedMs = 0 }: { startedAt: string; totalPausedMs?: number }) {
+  const [, setTick] = useState(0)
+  useEffect(() => {
+    const id = setInterval(() => setTick(t => t + 1), 1000)
+    return () => clearInterval(id)
+  }, [])
+  return <>{elapsedTimer(startedAt, totalPausedMs)}</>
 }
 
 type FormData = {
@@ -171,7 +219,10 @@ export default function TasksPage() {
   const [team, setTeam]     = useState<Profile[]>([])
   const [loading, setLoading] = useState(true)
 
-  const draggingRef = useRef<string | null>(null)
+  const draggingRef  = useRef<string | null>(null)
+  const stagesRef    = useRef<WorkflowStage[]>([])
+  const prevTasksRef = useRef<Task[]>([])
+  const ownChangesRef = useRef<Set<string>>(new Set())
   const [dragging, setDragging] = useState<string | null>(null)
 
   const [showNew, setShowNew] = useState(false)
@@ -194,7 +245,9 @@ export default function TasksPage() {
   useEffect(() => {
     Promise.all([getWorkflowStages(), getTasks(), getClients(), getTeamMembers(), getCurrentUser()])
       .then(([st, tk, cl, tm, user]) => {
-        setStages(st); setTasks(tk); setClients(cl); setTeam(tm)
+        setStages(st);  stagesRef.current = st
+        setTasks(tk);  prevTasksRef.current = tk
+        setClients(cl); setTeam(tm)
         if (user) { setCurrentUserName(user.full_name); setCurrentUserId(user.id) }
         setLoading(false)
       })
@@ -208,7 +261,34 @@ export default function TasksPage() {
       .on(
         'postgres_changes',
         { event: '*', schema: 'public', table: 'tasks' },
-        () => { if (draggingRef.current) return; getTasks().then(data => setTasks([...data])).catch(() => {}) }
+        () => {
+          if (draggingRef.current) return
+          getTasks().then(newData => {
+            const prev   = prevTasksRef.current
+            const stgs   = stagesRef.current
+            const tasdiglandiId  = stgs.find(s => s.slug === 'tasdiqlandi')?.id
+            const postingCheckId = stgs.find(s => s.slug === 'posting_check')?.id
+
+            if (prev.length > 0 && stgs.length > 0) {
+              newData.forEach(nt => {
+                const pt = prev.find(t => t.id === nt.id)
+                if (!pt) return
+                // Tasdiqlandi bosqichiga o'tish
+                if (tasdiglandiId && nt.stage_id === tasdiglandiId && pt.stage_id !== tasdiglandiId
+                    && !ownChangesRef.current.has(nt.id)) {
+                  playSound('tasdiqlandi')
+                }
+                // Posting Check — mijoz tasdiqladi
+                if (postingCheckId && nt.stage_id === postingCheckId && nt.client_approved && !pt.client_approved) {
+                  playSound('posting_approved')
+                }
+              })
+            }
+
+            prevTasksRef.current = newData
+            setTasks([...newData])
+          }).catch(() => {})
+        }
       )
       .subscribe()
     return () => { supabase.removeChannel(channel) }
@@ -223,6 +303,12 @@ export default function TasksPage() {
     setDragging(null)
     draggingRef.current = null
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, stage_id: stageId } : t))
+    const targetSlug = stagesRef.current.find(s => s.id === stageId)?.slug
+    if (targetSlug === 'tasdiqlandi') {
+      ownChangesRef.current.add(taskId)
+      playSound('tasdiqlandi')
+      setTimeout(() => ownChangesRef.current.delete(taskId), 3000)
+    }
     await updateTask(taskId, { stage_id: stageId })
   }
 
@@ -304,6 +390,44 @@ export default function TasksPage() {
   const stageOf  = (id?: string) => stages.find(s => s.id === id)
   const isPostingCheck = (task: Task) => stageOf(task.stage_id)?.slug === 'posting_check'
   const isJarayonda    = (task: Task) => stageOf(task.stage_id)?.slug === 'jarayonda'
+
+  const handleStartTimer = async (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      const updated = await startTaskTimer(taskId)
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updated } : t))
+      setDetail(prev => prev?.id === taskId ? { ...prev, ...updated } : prev)
+    } catch {}
+  }
+
+  const handleStopTimer = async (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      const updated = await stopTaskTimer(taskId)
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updated } : t))
+      setDetail(prev => prev?.id === taskId ? { ...prev, ...updated } : prev)
+    } catch {}
+  }
+
+  const handlePauseTimer = async (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    try {
+      const updated = await pauseTaskTimer(taskId)
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updated } : t))
+      setDetail(prev => prev?.id === taskId ? { ...prev, ...updated } : prev)
+    } catch {}
+  }
+
+  const handleResumeTimer = async (taskId: string, e: React.MouseEvent) => {
+    e.stopPropagation()
+    const src = tasks.find(t => t.id === taskId) ?? (detail?.id === taskId ? detail : null)
+    if (!src?.timer_paused_at) return
+    try {
+      const updated = await resumeTaskTimer(taskId, src.timer_paused_at, src.timer_total_paused_ms ?? 0)
+      setTasks(prev => prev.map(t => t.id === taskId ? { ...t, ...updated } : t))
+      setDetail(prev => prev?.id === taskId ? { ...prev, ...updated } : prev)
+    } catch {}
+  }
 
   if (loading) return <div className={s.empty}>Yuklanmoqda...</div>
 
@@ -479,8 +603,41 @@ export default function TasksPage() {
                       {task.task_type && (
                         <span className={k.tag}>{TASK_TYPE_LABELS[task.task_type as keyof typeof TASK_TYPE_LABELS] ?? task.task_type}</span>
                       )}
-                      {isJarayonda(task) && task.stage_entered_at && (
-                        <span className={k.tagTimer}><Clock size={9} /> {elapsed(task.stage_entered_at)}</span>
+                      {isJarayonda(task) && !task.timer_started_at && (
+                        <button className={k.tagTimerStart} onClick={(e) => handleStartTimer(task.id, e)}>
+                          <Play size={9} /> Boshlash
+                        </button>
+                      )}
+                      {isJarayonda(task) && task.timer_started_at && !task.timer_stopped_at && !task.timer_paused_at && (
+                        <>
+                          <span className={k.tagTimer}>
+                            <Clock size={9} /> <TimerDisplay startedAt={task.timer_started_at} totalPausedMs={task.timer_total_paused_ms ?? 0} />
+                          </span>
+                          <button className={k.tagPauseBtn} onClick={(e) => handlePauseTimer(task.id, e)} title="Pauza">
+                            <Pause size={8} />
+                          </button>
+                          <button className={k.tagStopBtn} onClick={(e) => handleStopTimer(task.id, e)} title="Tugatish">
+                            <Square size={8} />
+                          </button>
+                        </>
+                      )}
+                      {isJarayonda(task) && task.timer_started_at && !task.timer_stopped_at && task.timer_paused_at && (
+                        <>
+                          <span className={k.tagTimerPaused}>
+                            <Pause size={9} /> {elapsedTimer(task.timer_started_at, task.timer_total_paused_ms ?? 0, task.timer_paused_at)}
+                          </span>
+                          <button className={k.tagResumeBtn} onClick={(e) => handleResumeTimer(task.id, e)} title="Davom etish">
+                            <Play size={8} />
+                          </button>
+                          <button className={k.tagStopBtn} onClick={(e) => handleStopTimer(task.id, e)} title="Tugatish">
+                            <Square size={8} />
+                          </button>
+                        </>
+                      )}
+                      {isJarayonda(task) && task.timer_started_at && task.timer_stopped_at && (
+                        <span className={k.tagTimerDone}>
+                          <CheckCircle size={9} /> {formatDuration(task.timer_started_at, task.timer_stopped_at, task.timer_total_paused_ms ?? 0)}
+                        </span>
                       )}
                       {isPostingCheck(task) && task.content_url && (
                         <span className={k.tagLink}><Link size={9} /> Havola</span>
@@ -628,9 +785,40 @@ export default function TasksPage() {
                     </div>
                   </div>
                 )}
-                {isJarayonda(detail) && detail.stage_entered_at && (
-                  <div className={k.timerBadge}>
-                    <Clock size={12} /> Jarayonda: {elapsed(detail.stage_entered_at)}
+                {isJarayonda(detail) && !detail.timer_started_at && (
+                  <button type="button" className={k.timerStartBtn} onClick={(e) => handleStartTimer(detail.id, e)}>
+                    <Play size={14} /> Timerni boshlash
+                  </button>
+                )}
+                {isJarayonda(detail) && detail.timer_started_at && !detail.timer_stopped_at && !detail.timer_paused_at && (
+                  <div style={{ display: 'flex', gap: 8, margin: '10px 0 4px', alignItems: 'stretch' }}>
+                    <div className={k.timerBadge} style={{ flex: 1, margin: 0 }}>
+                      <Clock size={12} /> Ish vaqti: <TimerDisplay startedAt={detail.timer_started_at} totalPausedMs={detail.timer_total_paused_ms ?? 0} />
+                    </div>
+                    <button type="button" className={k.timerPauseBtn} onClick={(e) => handlePauseTimer(detail.id, e)}>
+                      <Pause size={13} /> Pauza
+                    </button>
+                    <button type="button" className={k.timerStopBtn} onClick={(e) => handleStopTimer(detail.id, e)}>
+                      <Square size={13} />
+                    </button>
+                  </div>
+                )}
+                {isJarayonda(detail) && detail.timer_started_at && !detail.timer_stopped_at && detail.timer_paused_at && (
+                  <div style={{ display: 'flex', gap: 8, margin: '10px 0 4px', alignItems: 'stretch' }}>
+                    <div className={k.timerPausedBadge} style={{ flex: 1, margin: 0 }}>
+                      <Pause size={12} /> Pauza · {elapsedTimer(detail.timer_started_at, detail.timer_total_paused_ms ?? 0, detail.timer_paused_at)}
+                    </div>
+                    <button type="button" className={k.timerResumeBtn} onClick={(e) => handleResumeTimer(detail.id, e)}>
+                      <Play size={13} /> Davom
+                    </button>
+                    <button type="button" className={k.timerStopBtn} onClick={(e) => handleStopTimer(detail.id, e)}>
+                      <Square size={13} />
+                    </button>
+                  </div>
+                )}
+                {isJarayonda(detail) && detail.timer_started_at && detail.timer_stopped_at && (
+                  <div className={k.timerDoneBadge}>
+                    <CheckCircle size={12} /> Ish vaqti: {formatDuration(detail.timer_started_at, detail.timer_stopped_at, detail.timer_total_paused_ms ?? 0)} — saqlandi
                   </div>
                 )}
 

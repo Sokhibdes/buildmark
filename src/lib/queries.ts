@@ -36,6 +36,66 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 }
 
 // =============================================
+// KANBAN STATS (Dashboard uchun)
+// =============================================
+export interface KanbanStats {
+  active_clients: number
+  jarayonda_count: number
+  kontentplan_count: number
+  bajarildi_count: number
+  overdue_count: number
+}
+
+export async function getKanbanStats(from: string, to: string): Promise<KanbanStats> {
+  const supabase = createClient()
+
+  const { data: stages } = await supabase.from('workflow_stages').select('id, slug')
+  const sid = (slug: string) => stages?.find(s => s.slug === slug)?.id ?? null
+  const toEnd = to + 'T23:59:59.999Z'
+
+  const byStage = (slug: string) => {
+    const id = sid(slug)
+    if (!id) return Promise.resolve({ count: 0 })
+    return supabase.from('tasks').select('*', { count: 'exact', head: true })
+      .eq('stage_id', id).gte('created_at', from).lte('created_at', toEnd)
+  }
+
+  const [clients, jarayonda, kontentplan, bajarildi, overdue] = await Promise.all([
+    supabase.from('clients').select('*', { count: 'exact', head: true }).eq('status', 'active'),
+    byStage('jarayonda'),
+    byStage('kontentplan'),
+    byStage('bajarildi'),
+    supabase.from('tasks').select('*', { count: 'exact', head: true })
+      .lt('due_date', new Date().toISOString().split('T')[0])
+      .neq('status', 'done')
+      .gte('created_at', from).lte('created_at', toEnd),
+  ])
+
+  return {
+    active_clients: clients.count ?? 0,
+    jarayonda_count: jarayonda.count ?? 0,
+    kontentplan_count: kontentplan.count ?? 0,
+    bajarildi_count: bajarildi.count ?? 0,
+    overdue_count: overdue.count ?? 0,
+  }
+}
+
+export async function getTasksByStageSlug(slug: string, from: string, to: string): Promise<Task[]> {
+  const supabase = createClient()
+  const { data: stage } = await supabase.from('workflow_stages').select('id').eq('slug', slug).single()
+  if (!stage) return []
+  const { data } = await supabase
+    .from('tasks')
+    .select('*, client:clients(id, company_name), creator:profiles!created_by(id, full_name)')
+    .eq('stage_id', stage.id)
+    .gte('created_at', from)
+    .lte('created_at', to + 'T23:59:59.999Z')
+    .order('created_at', { ascending: false })
+    .limit(15)
+  return data ?? []
+}
+
+// =============================================
 // CLIENTS
 // =============================================
 export async function getClients(): Promise<Client[]> {
@@ -151,7 +211,13 @@ export async function createTask(task: Partial<Task>): Promise<Task> {
 export async function updateTask(id: string, updates: Partial<Task>): Promise<Task> {
   const supabase = createClient()
   const payload: any = { ...updates }
-  if ('stage_id' in updates) payload.stage_entered_at = new Date().toISOString()
+  if ('stage_id' in updates) {
+    payload.stage_entered_at = new Date().toISOString()
+    payload.timer_started_at = null
+    payload.timer_paused_at = null
+    payload.timer_stopped_at = null
+    payload.timer_total_paused_ms = 0
+  }
   const { data, error } = await supabase
     .from('tasks')
     .update(payload)
@@ -161,6 +227,60 @@ export async function updateTask(id: string, updates: Partial<Task>): Promise<Ta
   if (error) throw error
   const action = 'stage_id' in updates ? 'assigned' : 'updated'
   log(action, 'task', data.id, data.title)
+  return data
+}
+
+export async function startTaskTimer(id: string): Promise<Task> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('tasks')
+    .update({ timer_started_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  log('started', 'task', data.id, data.title)
+  return data
+}
+
+export async function pauseTaskTimer(id: string): Promise<Task> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('tasks')
+    .update({ timer_paused_at: new Date().toISOString() })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function resumeTaskTimer(id: string, pausedAt: string, currentTotalPausedMs: number): Promise<Task> {
+  const supabase = createClient()
+  const additionalMs = Date.now() - new Date(pausedAt).getTime()
+  const { data, error } = await supabase
+    .from('tasks')
+    .update({
+      timer_paused_at: null,
+      timer_total_paused_ms: currentTotalPausedMs + additionalMs,
+    })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}
+
+export async function stopTaskTimer(id: string): Promise<Task> {
+  const supabase = createClient()
+  const { data, error } = await supabase
+    .from('tasks')
+    .update({ timer_stopped_at: new Date().toISOString(), timer_paused_at: null })
+    .eq('id', id)
+    .select()
+    .single()
+  if (error) throw error
+  log('stopped', 'task', data.id, data.title)
   return data
 }
 
