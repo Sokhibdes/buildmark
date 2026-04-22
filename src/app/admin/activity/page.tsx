@@ -2,7 +2,9 @@
 import { useState, useEffect } from 'react'
 import { getActivityLogs } from '@/lib/queries'
 import type { ActivityLog } from '@/lib/queries'
-import s from '../admin.module.css'
+import lightS from '../admin.module.css'
+import darkS from '../admin-dark.module.css'
+import { useTheme } from '@/lib/theme-context'
 
 const ENTITY_LABELS: Record<string, string> = {
   task: 'Vazifa',
@@ -46,6 +48,8 @@ function getInitials(name: string): string {
 }
 
 export default function ActivityPage() {
+  const { theme } = useTheme()
+  const s = theme === 'dark' ? darkS : lightS
   const [logs, setLogs] = useState<ActivityLog[]>([])
   const [loading, setLoading] = useState(true)
   const [filterEntity, setFilterEntity] = useState('')

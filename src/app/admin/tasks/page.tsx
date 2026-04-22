@@ -6,8 +6,11 @@ import type { TaskComment } from '@/lib/queries'
 import { createClient } from '@/lib/supabase/client'
 import type { Task, WorkflowStage, Client, Profile } from '@/types'
 import { TASK_TYPE_LABELS, ROLE_LABELS } from '@/types'
-import s from '../admin.module.css'
-import k from './kanban.module.css'
+import lightS from '../admin.module.css'
+import darkS from '../admin-dark.module.css'
+import lightK from './kanban.module.css'
+import darkK from './kanban-dark.module.css'
+import { useTheme } from '@/lib/theme-context'
 
 const PRIORITY_ICON: Record<string, React.ReactNode> = {
   urgent: <AlertCircle size={12} color="#d85a30" />,
@@ -21,6 +24,10 @@ const PRIORITY_LABELS: Record<string, string> = {
 const STAGE_COLORS: Record<string, string> = {
   gray: '#888780', blue: '#185fa5', teal: '#0f6e56',
   amber: '#854f0b', purple: '#534ab7', green: '#3b6d11',
+}
+const STAGE_COLORS_DARK: Record<string, string> = {
+  gray: '#8A8A8E', blue: '#A78BFA', teal: '#34D399',
+  amber: '#FBBF24', purple: '#C4B5FD', green: '#86EFAC',
 }
 
 function elapsed(isoDate?: string): string {
@@ -48,6 +55,8 @@ function AssigneeSelect({ selected, team, onChange }: {
   team: Profile[]
   onChange: (ids: string[]) => void
 }) {
+  const { theme } = useTheme()
+  const s = theme === 'dark' ? darkS : lightS
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
 
@@ -64,6 +73,24 @@ function AssigneeSelect({ selected, team, onChange }: {
 
   const selectedMembers = team.filter(m => selected.includes(m.id))
 
+  const isDark = theme === 'dark'
+  const C = {
+    border:       isDark ? '#3A3A3C' : '#e8e6df',
+    bg:           isDark ? '#1C1C1E' : '#fff',
+    placeholder:  isDark ? '#6A6A6E' : '#a1a1aa',
+    chipBg:       isDark ? '#1E1533' : '#e6f1fb',
+    chipColor:    isDark ? '#A78BFA' : '#185fa5',
+    dropBg:       isDark ? '#1C1C1E' : '#fff',
+    rowHover:     isDark ? '#242428' : '#f0f7ff',
+    cbBorderSel:  isDark ? '#7B5CF6' : '#185fa5',
+    cbBorderIdle: isDark ? '#48484A' : '#d4d2cb',
+    cbBgSel:      isDark ? '#7B5CF6' : '#185fa5',
+    avatarBg:     isDark ? '#1E1533' : '#e6f1fb',
+    avatarColor:  isDark ? '#A78BFA' : '#185fa5',
+    nameColor:    isDark ? '#E5E5E7' : '#18181b',
+    roleColor:    isDark ? '#6A6A6E' : '#a1a1aa',
+  }
+
   return (
     <div ref={ref} style={{ position: 'relative' }}>
       <button
@@ -72,15 +99,15 @@ function AssigneeSelect({ selected, team, onChange }: {
         style={{
           width: '100%', display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: 5,
           minHeight: 36, padding: '5px 10px',
-          border: '1px solid #e8e6df', borderRadius: 7, background: '#fff',
+          border: `1px solid ${C.border}`, borderRadius: 7, background: C.bg,
           cursor: 'pointer', fontFamily: 'inherit', fontSize: 13, textAlign: 'left',
         }}
       >
         {selectedMembers.length === 0
-          ? <span style={{ color: '#a1a1aa' }}>— Tanlang</span>
+          ? <span style={{ color: C.placeholder }}>— Tanlang</span>
           : selectedMembers.map(m => (
             <span key={m.id} style={{
-              background: '#e6f1fb', color: '#185fa5',
+              background: C.chipBg, color: C.chipColor,
               padding: '2px 8px', borderRadius: 4, fontSize: 11, fontWeight: 500,
             }}>
               {m.full_name.split(' ')[0]}
@@ -92,9 +119,9 @@ function AssigneeSelect({ selected, team, onChange }: {
       {open && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
-          background: '#fff', border: '1px solid #e8e6df', borderRadius: 8,
-          boxShadow: '0 4px 16px rgba(0,0,0,0.1)', marginTop: 4,
-          maxHeight: 220, overflowY: 'auto',
+          background: C.dropBg, border: `1px solid ${C.border}`, borderRadius: 8,
+          boxShadow: isDark ? '0 4px 24px rgba(0,0,0,0.5)' : '0 4px 16px rgba(0,0,0,0.1)',
+          marginTop: 4, maxHeight: 220, overflowY: 'auto',
         }}>
           {team.map(member => {
             const isSel = selected.includes(member.id)
@@ -102,27 +129,27 @@ function AssigneeSelect({ selected, team, onChange }: {
               <div key={member.id} onClick={() => toggle(member.id)} style={{
                 display: 'flex', alignItems: 'center', gap: 10,
                 padding: '8px 12px', cursor: 'pointer',
-                background: isSel ? '#f0f7ff' : 'transparent',
+                background: isSel ? C.rowHover : 'transparent',
               }}>
                 <div style={{
                   width: 16, height: 16, flexShrink: 0,
-                  border: `2px solid ${isSel ? '#185fa5' : '#d4d2cb'}`,
-                  borderRadius: 4, background: isSel ? '#185fa5' : 'transparent',
+                  border: `2px solid ${isSel ? C.cbBorderSel : C.cbBorderIdle}`,
+                  borderRadius: 4, background: isSel ? C.cbBgSel : 'transparent',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                 }}>
                   {isSel && <svg width="10" height="8" viewBox="0 0 10 8" fill="none"><path d="M1 4L4 7L9 1" stroke="white" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
                 </div>
                 <div style={{
                   width: 26, height: 26, borderRadius: 7, flexShrink: 0,
-                  background: '#e6f1fb', color: '#185fa5',
+                  background: C.avatarBg, color: C.avatarColor,
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
                   fontSize: 10, fontWeight: 700,
                 }}>
                   {member.full_name.slice(0, 2).toUpperCase()}
                 </div>
                 <div>
-                  <div style={{ fontSize: 12, fontWeight: 500, color: '#18181b' }}>{member.full_name}</div>
-                  <div style={{ fontSize: 10, color: '#a1a1aa' }}>{ROLE_LABELS[member.role]}</div>
+                  <div style={{ fontSize: 12, fontWeight: 500, color: C.nameColor }}>{member.full_name}</div>
+                  <div style={{ fontSize: 10, color: C.roleColor }}>{ROLE_LABELS[member.role]}</div>
                 </div>
               </div>
             )
@@ -134,6 +161,10 @@ function AssigneeSelect({ selected, team, onChange }: {
 }
 
 export default function TasksPage() {
+  const { theme } = useTheme()
+  const s = theme === 'dark' ? darkS : lightS
+  const k = theme === 'dark' ? darkK : lightK
+  const stageColors = theme === 'dark' ? STAGE_COLORS_DARK : STAGE_COLORS
   const [stages, setStages] = useState<WorkflowStage[]>([])
   const [tasks, setTasks]   = useState<Task[]>([])
   const [clients, setClients] = useState<Client[]>([])
@@ -156,13 +187,15 @@ export default function TasksPage() {
   const [comments, setComments]   = useState<TaskComment[]>([])
   const [commentText, setCommentText] = useState('')
   const [commentSaving, setCommentSaving] = useState(false)
+  const [commentErr, setCommentErr] = useState('')
   const [currentUserName, setCurrentUserName] = useState('Xodim')
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
 
   useEffect(() => {
     Promise.all([getWorkflowStages(), getTasks(), getClients(), getTeamMembers(), getCurrentUser()])
       .then(([st, tk, cl, tm, user]) => {
         setStages(st); setTasks(tk); setClients(cl); setTeam(tm)
-        if (user) setCurrentUserName(user.full_name)
+        if (user) { setCurrentUserName(user.full_name); setCurrentUserId(user.id) }
         setLoading(false)
       })
       .catch(() => setLoading(false))
@@ -207,8 +240,14 @@ export default function TasksPage() {
         assigned_to: form.assigned_to.length > 0 ? form.assigned_to : undefined,
         stage_id: form.stage_id || undefined, due_date: form.due_date || undefined,
         content_url: form.content_url || undefined, status: 'todo', visible_to_client: false,
+        created_by: currentUserId ?? undefined,
       })
-      setTasks(prev => [created, ...prev])
+      const createdWithMeta: any = {
+        ...created,
+        client: clients.find(c => c.id === form.client_id) ?? null,
+        creator: currentUserId ? { id: currentUserId, full_name: currentUserName } : null,
+      }
+      setTasks(prev => [createdWithMeta, ...prev])
       setShowNew(false)
     } catch (err: any) { setFormErr(err?.message ?? 'Saqlashda xatolik') }
     finally { setSaving(false) }
@@ -223,18 +262,22 @@ export default function TasksPage() {
       stage_id: task.stage_id ?? '', due_date: task.due_date?.slice(0, 10) ?? '',
       content_url: task.content_url ?? '',
     })
-    setChanged(false); setEditErr(''); setCommentText('')
-    getTaskComments(task.id).then(setComments).catch(() => {})
+    setChanged(false); setEditErr(''); setCommentText(''); setCommentErr('')
+    getTaskComments(task.id).then(setComments).catch(err => console.error('Comments load error:', err))
   }
 
   const handleSendComment = async () => {
     if (!detail || !commentText.trim()) return
     setCommentSaving(true)
+    setCommentErr('')
     try {
       const c = await createStaffComment(detail.id, commentText.trim(), currentUserName)
       setComments(prev => [...prev, c])
       setCommentText('')
-    } catch {}
+    } catch (err: any) {
+      console.error('Comment send error:', err)
+      setCommentErr(err?.message ?? 'Xabar yuborishda xatolik')
+    }
     finally { setCommentSaving(false) }
   }
 
@@ -347,7 +390,7 @@ export default function TasksPage() {
         <div className={k.wfSteps}>
           {stages.map((st, i) => (
             <div key={st.id} className={k.wfStep}>
-              <div className={k.wfDot} style={{ background: STAGE_COLORS[st.color] ?? '#888' }} />
+              <div className={k.wfDot} style={{ background: stageColors[st.color] ?? '#888' }} />
               <div className={k.wfName}>
                 {st.name}
                 {st.visible_to_client && <Eye size={10} style={{ marginLeft: 4, color: '#185fa5', verticalAlign: 'middle' }} />}
@@ -362,7 +405,7 @@ export default function TasksPage() {
       <div className={k.board}>
         {stages.map(stage => {
           const stageTasks = byStage(stage.id)
-          const color = STAGE_COLORS[stage.color] ?? '#888780'
+          const color = stageColors[stage.color] ?? '#888780'
           return (
             <div key={stage.id} className={k.column}
               onDragOver={e => e.preventDefault()}
@@ -399,47 +442,76 @@ export default function TasksPage() {
                         <CheckCircle size={11} /> Mijoz tasdiqladi
                       </div>
                     )}
+
+                    {/* Client label */}
+                    {(task as any).client && (
+                      <div className={k.taskClientRow}>
+                        <span className={k.taskClientLabel}>Client</span>
+                        <span className={k.taskClientName}>{(task as any).client.company_name}</span>
+                      </div>
+                    )}
+
+                    {/* Title + priority icon */}
                     <div className={k.taskHeader}>
                       {PRIORITY_ICON[task.priority]}
                       <span className={k.taskTitle}>{task.title}</span>
                     </div>
-                    {(task as any).client && <div className={k.taskClient}>{(task as any).client.company_name}</div>}
-                    <div className={k.taskFooter}>
-                      {task.task_type && <span className={k.taskType}>{TASK_TYPE_LABELS[task.task_type as keyof typeof TASK_TYPE_LABELS] ?? task.task_type}</span>}
+
+                    {/* ID + Date + Creator */}
+                    <div className={k.taskMetaRow}>
+                      <span className={k.taskIdBadge}>#{task.id.slice(0, 7).toUpperCase()}</span>
+                      {task.due_date && (
+                        <span className={`${k.taskDateBadge} ${new Date(task.due_date) < new Date() ? k.taskDateOverdue : ''}`}>
+                          <Calendar size={9} />
+                          {new Date(task.due_date).toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric' })}
+                        </span>
+                      )}
+                      {(task as any).creator && (
+                        <span className={k.taskCreator}>
+                          <User size={9} />
+                          {(task as any).creator.full_name.split(' ')[0]}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Pill tags */}
+                    <div className={k.taskTags}>
+                      {task.task_type && (
+                        <span className={k.tag}>{TASK_TYPE_LABELS[task.task_type as keyof typeof TASK_TYPE_LABELS] ?? task.task_type}</span>
+                      )}
                       {isJarayonda(task) && task.stage_entered_at && (
-                        <span className={k.taskTimer}><Clock size={9} /> {elapsed(task.stage_entered_at)}</span>
+                        <span className={k.tagTimer}><Clock size={9} /> {elapsed(task.stage_entered_at)}</span>
                       )}
                       {isPostingCheck(task) && task.content_url && (
-                        <span className={k.taskLink}><Link size={9} /> Havola</span>
+                        <span className={k.tagLink}><Link size={9} /> Havola</span>
                       )}
+                      <div style={{ flex: 1 }} />
                       {task.assigned_to && task.assigned_to.length > 0 && (
                         <div style={{ display: 'flex', alignItems: 'center' }}>
                           {task.assigned_to.slice(0, 3).map((id, i) => {
                             const m = team.find(t => t.id === id)
                             if (!m) return null
+                            const isDarkMode = theme === 'dark'
                             return (
                               <div key={id} title={m.full_name} style={{
                                 width: 20, height: 20, borderRadius: '50%',
-                                background: '#e6f1fb', color: '#185fa5',
+                                background: isDarkMode ? '#1E1533' : '#e6f1fb',
+                                color: isDarkMode ? '#A78BFA' : '#185fa5',
                                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                                 fontSize: 8, fontWeight: 700,
                                 marginLeft: i > 0 ? -5 : 0,
-                                border: '1.5px solid #fff', flexShrink: 0,
+                                border: isDarkMode ? '1.5px solid #2C2C2E' : '1.5px solid #fff',
+                                flexShrink: 0,
                               }}>
                                 {m.full_name.slice(0, 2).toUpperCase()}
                               </div>
                             )
                           })}
                           {task.assigned_to.length > 3 && (
-                            <div style={{ fontSize: 9, color: '#888780', marginLeft: 4, fontWeight: 600 }}>
+                            <div style={{ fontSize: 9, color: theme === 'dark' ? '#6A6A6E' : '#888780', marginLeft: 4, fontWeight: 600 }}>
                               +{task.assigned_to.length - 3}
                             </div>
                           )}
-                        </div>
-                      )}
-                      {task.due_date && (
-                        <div className={`${k.taskDue} ${new Date(task.due_date) < new Date() ? k.taskDueOverdue : ''}`}>
-                          {new Date(task.due_date).toLocaleDateString('uz-UZ', { month: 'short', day: 'numeric' })}
                         </div>
                       )}
                     </div>
@@ -484,7 +556,7 @@ export default function TasksPage() {
               <div>
                 <div className={k.modalTitle}>{detail.title}</div>
                 {stageOf(detail.stage_id) && (
-                  <div style={{ fontSize: 11, color: STAGE_COLORS[stageOf(detail.stage_id)!.color] ?? '#888', marginTop: 2 }}>
+                  <div style={{ fontSize: 11, color: stageColors[stageOf(detail.stage_id)!.color] ?? '#888', marginTop: 2 }}>
                     {stageOf(detail.stage_id)!.name}
                   </div>
                 )}
@@ -578,13 +650,13 @@ export default function TasksPage() {
                 </div>
 
                 {/* Izohlar */}
-                <div style={{ marginTop: 20, borderTop: '1px solid #f0ede6', paddingTop: 16 }}>
-                  <div style={{ fontSize: 12, fontWeight: 600, color: '#52525b', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
+                <div style={{ marginTop: 20, borderTop: `1px solid ${theme === 'dark' ? '#2C2C2E' : '#f0ede6'}`, paddingTop: 16 }}>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: theme === 'dark' ? '#8A8A8E' : '#52525b', marginBottom: 12, textTransform: 'uppercase', letterSpacing: '0.4px' }}>
                     Izohlar {comments.length > 0 && `(${comments.length})`}
                   </div>
 
                   {comments.length === 0 ? (
-                    <div style={{ fontSize: 12, color: '#c4c2bb', textAlign: 'center', padding: '16px 0' }}>
+                    <div style={{ fontSize: 12, color: theme === 'dark' ? '#48484A' : '#c4c2bb', textAlign: 'center', padding: '16px 0' }}>
                       Hali izoh yo&apos;q
                     </div>
                   ) : (
@@ -595,8 +667,12 @@ export default function TasksPage() {
                         }}>
                           <div style={{
                             width: 28, height: 28, borderRadius: 8, flexShrink: 0,
-                            background: c.sender_type === 'client' ? '#fef3c7' : '#dbeafe',
-                            color: c.sender_type === 'client' ? '#92400e' : '#1d4ed8',
+                            background: c.sender_type === 'client'
+                              ? (theme === 'dark' ? '#2D1A00' : '#fef3c7')
+                              : (theme === 'dark' ? '#1A2744' : '#dbeafe'),
+                            color: c.sender_type === 'client'
+                              ? (theme === 'dark' ? '#FBBF24' : '#92400e')
+                              : (theme === 'dark' ? '#93C5FD' : '#1d4ed8'),
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             fontSize: 10, fontWeight: 700,
                           }}>
@@ -604,15 +680,20 @@ export default function TasksPage() {
                           </div>
                           <div style={{ maxWidth: '75%' }}>
                             <div style={{
-                              background: c.sender_type === 'client' ? '#fffbeb' : '#eff6ff',
-                              border: `1px solid ${c.sender_type === 'client' ? '#fde68a' : '#bfdbfe'}`,
+                              background: c.sender_type === 'client'
+                                ? (theme === 'dark' ? '#1A0E00' : '#fffbeb')
+                                : (theme === 'dark' ? '#0D1929' : '#eff6ff'),
+                              border: `1px solid ${c.sender_type === 'client'
+                                ? (theme === 'dark' ? '#3D2800' : '#fde68a')
+                                : (theme === 'dark' ? '#1E3A5F' : '#bfdbfe')}`,
                               borderRadius: c.sender_type === 'staff' ? '10px 4px 10px 10px' : '4px 10px 10px 10px',
-                              padding: '8px 11px', fontSize: 13, color: '#18181b', lineHeight: 1.5,
+                              padding: '8px 11px', fontSize: 13,
+                              color: theme === 'dark' ? '#E5E5E7' : '#18181b', lineHeight: 1.5,
                             }}>
                               {c.content}
                             </div>
                             <div style={{
-                              fontSize: 10, color: '#c4c2bb', marginTop: 3,
+                              fontSize: 10, color: theme === 'dark' ? '#48484A' : '#c4c2bb', marginTop: 3,
                               textAlign: c.sender_type === 'staff' ? 'right' : 'left',
                             }}>
                               {c.sender_name} · {new Date(c.created_at).toLocaleString('uz-UZ', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
@@ -627,10 +708,15 @@ export default function TasksPage() {
 
                 {editErr && <div className={k.formError}>{editErr}</div>}
               </div>
-              <div style={{ borderTop: '1px solid #f0ede6', padding: '12px 22px', background: '#faf9f7' }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>
+              <div style={{ borderTop: `1px solid ${theme === 'dark' ? '#2C2C2E' : '#f0ede6'}`, padding: '12px 22px', background: theme === 'dark' ? '#141414' : '#faf9f7' }}>
+                <div style={{ fontSize: 11, fontWeight: 600, color: theme === 'dark' ? '#6A6A6E' : '#a1a1aa', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 8 }}>
                   Mijozga javob yozish
                 </div>
+                {commentErr && (
+                  <div style={{ fontSize: 12, color: '#dc2626', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 7, padding: '7px 10px', marginBottom: 8 }}>
+                    ⚠ {commentErr}
+                  </div>
+                )}
                 <div style={{ display: 'flex', gap: 8 }}>
                   <textarea
                     value={commentText}
@@ -640,13 +726,11 @@ export default function TasksPage() {
                     rows={2}
                     style={{
                       flex: 1, padding: '8px 11px',
-                      border: '1.5px solid #e4e2db', borderRadius: 8,
+                      border: `1.5px solid ${theme === 'dark' ? '#3A3A3C' : '#e4e2db'}`, borderRadius: 8,
                       fontSize: 13, fontFamily: 'inherit', resize: 'none',
-                      outline: 'none', color: '#18181b', lineHeight: 1.5,
-                      background: '#fff',
+                      outline: 'none', color: theme === 'dark' ? '#E5E5E7' : '#18181b', lineHeight: 1.5,
+                      background: theme === 'dark' ? '#1C1C1E' : '#fff',
                     }}
-                    onFocus={e => { e.target.style.borderColor = '#185fa5'; e.target.style.boxShadow = '0 0 0 3px rgba(24,95,165,0.1)' }}
-                    onBlur={e => { e.target.style.borderColor = '#e4e2db'; e.target.style.boxShadow = 'none' }}
                   />
                   <button
                     type="button"
@@ -654,11 +738,12 @@ export default function TasksPage() {
                     disabled={!commentText.trim() || commentSaving}
                     style={{
                       padding: '0 16px', borderRadius: 8, border: 'none', alignSelf: 'stretch',
-                      background: commentText.trim() ? 'linear-gradient(135deg, #185fa5, #1a6bbf)' : '#e4e2db',
-                      color: commentText.trim() ? 'white' : '#a1a1aa',
+                      background: commentText.trim()
+                        ? theme === 'dark' ? 'linear-gradient(135deg, #6D28D9, #7B5CF6)' : 'linear-gradient(135deg, #185fa5, #1a6bbf)'
+                        : theme === 'dark' ? '#2C2C2E' : '#e4e2db',
+                      color: commentText.trim() ? 'white' : theme === 'dark' ? '#6A6A6E' : '#a1a1aa',
                       fontSize: 12, fontWeight: 600, cursor: commentText.trim() ? 'pointer' : 'not-allowed',
                       fontFamily: 'inherit', flexShrink: 0,
-                      boxShadow: commentText.trim() ? '0 2px 6px rgba(24,95,165,0.25)' : 'none',
                     }}
                   >
                     {commentSaving ? '...' : 'Yuborish'}

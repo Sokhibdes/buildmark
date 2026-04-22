@@ -4,10 +4,13 @@ import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Users, Kanban, UserCircle,
-  BarChart3, Bell, LogOut, Menu, X, Camera, Megaphone, FileText, Activity
+  BarChart3, Bell, LogOut, Menu, X, Camera, Megaphone, FileText, Activity,
+  Sun, Moon
 } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
-import styles from './admin.module.css'
+import lightStyles from './admin.module.css'
+import darkStyles from './admin-dark.module.css'
+import { useTheme } from '@/lib/theme-context'
 import type { UserRole } from '@/types'
 import { ROLE_LABELS } from '@/types'
 
@@ -41,26 +44,26 @@ const BASE_NAV: { section: string; items: { href: string; label: string; icon: a
 export default function AdminLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
-  const [sidebarOpen, setSidebarOpen] = useState(false)
+  const { theme, toggle } = useTheme()
+  const styles = theme === 'dark' ? darkStyles : lightStyles
+  const [sidebarExpanded, setSidebarExpanded] = useState(false)
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [userName, setUserName] = useState('Admin')
   const [userRole, setUserRole] = useState<UserRole | null>(null)
   const [userAvatar, setUserAvatar] = useState<string | null>(null)
   const [checking, setChecking] = useState(true)
 
+  // Close mobile sidebar on navigation
   useEffect(() => {
-    // Default open on desktop, closed on mobile
-    setSidebarOpen(window.innerWidth >= 768)
-  }, [])
-
-  // Close sidebar on mobile when navigating
-  useEffect(() => {
-    if (window.innerWidth < 768) setSidebarOpen(false)
+    setMobileSidebarOpen(false)
   }, [pathname])
 
   useEffect(() => {
+    let cancelled = false
     const supabase = createClient()
     supabase.auth.getSession()
       .then(async ({ data: { session } }) => {
+        if (cancelled) return
         if (!session) { router.push('/login'); return }
         setUserName(session.user.email?.split('@')[0] ?? 'Admin')
         const { data: profile } = await supabase
@@ -68,14 +71,16 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           .select('full_name, role, avatar_url')
           .eq('id', session.user.id)
           .single()
+        if (cancelled) return
         if (profile) {
           setUserName(profile.full_name)
           setUserRole(profile.role as UserRole)
           setUserAvatar(profile.avatar_url ?? null)
         }
       })
-      .catch(() => router.push('/login'))
-      .finally(() => setChecking(false))
+      .catch(() => { if (!cancelled) router.push('/login') })
+      .finally(() => { if (!cancelled) setChecking(false) })
+    return () => { cancelled = true }
   }, [router])
 
   const isAdmin = userRole === 'owner' || userRole === 'admin'
@@ -99,35 +104,48 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     )
   }
 
+  const pageLabel =
+    pathname.includes('dashboard') ? 'Dashboard' :
+    pathname.includes('clients') ? 'Mijozlar' :
+    pathname.includes('tasks') ? 'Vazifalar' :
+    pathname.includes('team') ? 'Komanda' :
+    pathname.includes('reports') ? 'Hisobotlar' :
+    pathname.includes('content') ? 'Kontentlar' :
+    pathname.includes('campaigns') ? 'Kampaniyalar' :
+    pathname.includes('shooting') ? 'Syomka' :
+    pathname.includes('activity') ? 'Faollik jurnali' : 'Admin'
+
   return (
     <div className={styles.layout}>
-      {/* Mobile overlay backdrop */}
-      {sidebarOpen && (
-        <div className={styles.mobileOverlay} onClick={() => setSidebarOpen(false)} />
+      {mobileSidebarOpen && (
+        <div className={styles.mobileOverlay} onClick={() => setMobileSidebarOpen(false)} />
       )}
-      <aside className={`${styles.sidebar} ${sidebarOpen ? styles.sidebarOpen : styles.sidebarClosed}`}>
+
+      <aside className={`${styles.sidebar} ${sidebarExpanded ? styles.sidebarExpanded : ''} ${mobileSidebarOpen ? (styles as any).sidebarOpen : (styles as any).sidebarClosed}`}>
+
+        {/* Sidebar header: logo + brand text + hamburger */}
         <div className={styles.sidebarHeader}>
-          <div className={styles.logoMark}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none">
+          <div className={styles.sidebarLogo} title="Grafuz CRM">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
               <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
               <polyline points="9 22 9 12 15 12 15 22" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </div>
-          {sidebarOpen && (
-            <div>
+          {sidebarExpanded && (
+            <div style={{ flex: 1, minWidth: 0, marginLeft: 10 }}>
               <div className={styles.logoText}>Grafuz</div>
               <div className={styles.logoSub}>Marketing CRM</div>
             </div>
           )}
-          <button className={styles.menuBtn} onClick={() => setSidebarOpen(!sidebarOpen)}>
-            {sidebarOpen ? <X size={16} /> : <Menu size={16} />}
+          <button className={styles.menuBtn} onClick={() => setSidebarExpanded(v => !v)} title="Menu">
+            {sidebarExpanded ? <X size={14} /> : <Menu size={14} />}
           </button>
         </div>
 
         <nav className={styles.nav}>
           {NAV_ITEMS.map(section => (
-            <div key={section.section}>
-              {sidebarOpen && <div className={styles.navSection}>{section.section}</div>}
+            <div key={section.section} style={{ width: '100%' }}>
+              <div className={styles.navSection}>{section.section}</div>
               {section.items.map(item => {
                 const Icon = item.icon
                 const active = pathname.startsWith(item.href)
@@ -136,9 +154,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                     key={item.href}
                     href={item.href}
                     className={`${styles.navItem} ${active ? styles.navItemActive : ''}`}
+                    title={!sidebarExpanded ? item.label : undefined}
                   >
                     <Icon size={16} />
-                    {sidebarOpen && <span>{item.label}</span>}
+                    <span className={styles.navLabel}>{item.label}</span>
                   </Link>
                 )
               })}
@@ -146,23 +165,27 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           ))}
         </nav>
 
-        <div className={styles.sidebarFooter}>
-          <div className={styles.userInfo}>
+        <div className={styles.sidebarBottom}>
+          <button className={styles.navItem} title={theme === 'dark' ? 'Light mode' : 'Dark mode'} onClick={toggle}>
+            {theme === 'dark' ? <Sun size={16} /> : <Moon size={16} />}
+          </button>
+          <button className={styles.navItem} title="Chiqish" onClick={handleLogout}>
+            <LogOut size={16} />
+          </button>
+          <div className={styles.userRow}>
             {userAvatar ? (
-              <img src={userAvatar} alt={userName}
-                style={{ width: 30, height: 30, borderRadius: 8, objectFit: 'cover', flexShrink: 0, border: '1.5px solid #bfdbfe' }} />
+              <div className={styles.userAvatarSmall} title={userName}>
+                <img src={userAvatar} alt={userName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+              </div>
             ) : (
-              <div className={styles.userAvatar}>{userName.slice(0, 2).toUpperCase()}</div>
-            )}
-            {sidebarOpen && (
-              <div className={styles.userDetails}>
-                <div className={styles.userName}>{userName}</div>
-                <div className={styles.userRole}>{userRole ? ROLE_LABELS[userRole] : 'Admin'}</div>
+              <div className={styles.userAvatarSmall} title={`${userName} · ${userRole ? ROLE_LABELS[userRole] : 'Admin'}`}>
+                {userName.slice(0, 2).toUpperCase()}
               </div>
             )}
-            <button className={styles.logoutBtn} onClick={handleLogout}>
-              <LogOut size={14} />
-            </button>
+            <div className={styles.userInfoRow}>
+              <div className={styles.userNameText}>{userName}</div>
+              <div className={styles.userRoleText}>{userRole ? ROLE_LABELS[userRole] : 'Admin'}</div>
+            </div>
           </div>
         </div>
       </aside>
@@ -170,28 +193,20 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       <div className={styles.main}>
         <header className={styles.topbar}>
           <div className={styles.topbarLeft}>
-            {/* Mobile hamburger */}
             <button
-              className={`${styles.mobileSidebarToggle} ${styles.menuBtn}`}
-              onClick={() => setSidebarOpen(true)}
+              className={`${styles.mobileSidebarToggle} ${styles.notifBtn}`}
+              onClick={() => setMobileSidebarOpen(true)}
             >
               <Menu size={18} />
             </button>
             <div className={styles.breadcrumb}>
-              <span className={styles.breadcrumbActive}>
-                {pathname.includes('dashboard') ? 'Dashboard' :
-                 pathname.includes('clients') ? 'Mijozlar' :
-                 pathname.includes('tasks') ? 'Vazifalar' :
-                 pathname.includes('team') ? 'Komanda' :
-                 pathname.includes('reports') ? 'Hisobotlar' :
-                 pathname.includes('content') ? 'Kontentlar' :
-                 pathname.includes('campaigns') ? 'Kampaniyalar' :
-                 pathname.includes('activity') ? 'Faollik jurnali' : 'Admin'}
-              </span>
+              <span className={styles.breadcrumbActive}>{pageLabel}</span>
             </div>
           </div>
           <div className={styles.topbarRight}>
-            <Bell size={16} color="#888780" />
+            <button className={styles.notifBtn} title="Bildirishnomalar">
+              <Bell size={17} />
+            </button>
           </div>
         </header>
         <main className={styles.content}>

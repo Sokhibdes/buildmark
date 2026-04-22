@@ -7,11 +7,15 @@ import { ArrowLeft, Edit, ExternalLink, Instagram, Send, Facebook } from 'lucide
 import { getClientById, getTasks, getContentItems, getCampaigns, getMonthlyReports, createClient_db } from '@/lib/queries'
 import type { Client, Task, ContentItem, Campaign, MonthlyReport } from '@/types'
 import { PACKAGE_LABELS } from '@/types'
-import s from '../../admin.module.css'
+import lightS from '../../admin.module.css'
+import darkS from '../../admin-dark.module.css'
+import { useTheme } from '@/lib/theme-context'
 
 type Tab = 'overview' | 'tasks' | 'content' | 'campaigns' | 'reports'
 
 export default function ClientDetailPage() {
+  const { theme } = useTheme()
+  const s = theme === 'dark' ? darkS : lightS
   const { id } = useParams<{ id: string }>()
   const router = useRouter()
   const [client, setClient] = useState<Client | null>(null)

@@ -7,9 +7,13 @@ import { ArrowLeft } from 'lucide-react'
 import { createClient_db } from '@/lib/queries'
 import type { ClientPackage, ClientStatus } from '@/types'
 import { PACKAGE_LABELS } from '@/types'
-import s from '../../admin.module.css'
+import lightS from '../../admin.module.css'
+import darkS from '../../admin-dark.module.css'
+import { useTheme } from '@/lib/theme-context'
 
 export default function NewClientPage() {
+  const { theme } = useTheme()
+  const s = theme === 'dark' ? darkS : lightS
   const router = useRouter()
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')

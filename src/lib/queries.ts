@@ -121,7 +121,8 @@ export async function getTasks(filters?: {
     .select(`
       *,
       client:clients(id, company_name, logo_url),
-      stage:workflow_stages(id, name, slug, color)
+      stage:workflow_stages(id, name, slug, color),
+      creator:profiles!created_by(id, full_name)
     `)
     .order('created_at', { ascending: false })
 

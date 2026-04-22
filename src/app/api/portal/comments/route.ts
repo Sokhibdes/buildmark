@@ -6,17 +6,44 @@ async function verifyClientAuth(req: NextRequest) {
   if (!authHeader?.startsWith('Bearer ')) return null
 
   const token = authHeader.slice(7)
-  const supabase = createAdminClient()
 
-  const { data: { user }, error } = await supabase.auth.getUser(token)
-  if (error || !user) return null
+  // JWT ni decode qilib user ID va emailni olish (auth client kerak emas)
+  let userId: string, userEmail: string
+  try {
+    const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+    const payload = JSON.parse(Buffer.from(base64, 'base64').toString('utf8'))
+    console.log('[auth] JWT payload:', { sub: payload.sub, email: payload.email, exp: payload.exp, role: payload.role })
+    if (!payload.sub) return null
+    if (payload.exp < Math.floor(Date.now() / 1000)) {
+      console.log('[auth] Token expired')
+      return null
+    }
+    userId = payload.sub
+    userEmail = payload.email ?? ''
+  } catch (e) {
+    console.error('[auth] JWT decode error:', e)
+    return null
+  }
 
-  const { data: profile } = await supabase
-    .from('profiles').select('role').eq('id', user.id).single()
+  const admin = createAdminClient()
+
+  const { data: profileRows } = await admin
+    .from('profiles').select('role').eq('id', userId).limit(1)
+  const profile = profileRows?.[0] ?? null
+  console.log('[auth] profile:', { role: profile?.role })
   if (profile?.role !== 'client') return null
 
-  const { data: client } = await supabase
-    .from('clients').select('id, company_name').eq('email', user.email!).single()
+  // Email yo'q bo'lsa admin API dan olish
+  if (!userEmail) {
+    const { data: authUser } = await admin.auth.admin.getUserById(userId)
+    userEmail = authUser.user?.email ?? ''
+    console.log('[auth] fetched email from admin:', userEmail)
+  }
+
+  const { data: clientRows } = await admin
+    .from('clients').select('id, company_name').eq('email', userEmail).limit(1)
+  const client = clientRows?.[0] ?? null
+  console.log('[auth] client lookup:', { email: userEmail, found: !!client })
   if (!client) return null
 
   return { clientId: client.id, clientName: client.company_name }

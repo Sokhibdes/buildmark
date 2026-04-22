@@ -4,7 +4,9 @@ import { Plus, X, Camera, Trash2, KeyRound } from 'lucide-react'
 import { getTeamMembers, getTasks, uploadAvatar } from '@/lib/queries'
 import type { Profile, Task, UserRole } from '@/types'
 import { ROLE_LABELS, ROLE_COLORS } from '@/types'
-import s from '../admin.module.css'
+import lightS from '../admin.module.css'
+import darkS from '../admin-dark.module.css'
+import { useTheme } from '@/lib/theme-context'
 
 const ROLES: { value: UserRole; label: string }[] = [
   { value: 'content_manager', label: 'Kontent menejeri' },
@@ -35,6 +37,8 @@ const COLOR_MAP: Record<string, { bg: string; text: string }> = {
 }
 
 function ResetPasswordModal({ member, onClose }: { member: Profile; onClose: () => void }) {
+  const { theme } = useTheme()
+  const s = theme === 'dark' ? darkS : lightS
   const [password, setPassword] = useState('')
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -115,6 +119,8 @@ function ResetPasswordModal({ member, onClose }: { member: Profile; onClose: () 
 }
 
 function AddMemberModal({ onClose, onAdded }: { onClose: () => void; onAdded: (m: Profile) => void }) {
+  const { theme } = useTheme()
+  const s = theme === 'dark' ? darkS : lightS
   const [form, setForm] = useState({ full_name: '', email: '', password: '', role: 'content_manager' as UserRole, phone: '' })
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState('')
@@ -211,6 +217,8 @@ function AddMemberModal({ onClose, onAdded }: { onClose: () => void; onAdded: (m
 }
 
 export default function TeamPage() {
+  const { theme } = useTheme()
+  const s = theme === 'dark' ? darkS : lightS
   const [members, setMembers] = useState<Profile[]>([])
   const [tasks, setTasks] = useState<Task[]>([])
   const [loading, setLoading] = useState(true)

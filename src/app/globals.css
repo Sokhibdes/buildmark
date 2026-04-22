@@ -21,6 +21,12 @@ input, select, textarea { font-family: inherit; }
 
 ::selection { background: #dbeafe; color: #1e40af; }
 
+/* Dark mode globals */
+[data-theme="dark"] body { background: #0F0F0F; color: #FFFFFF; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb { background: #3A3A3C; }
+[data-theme="dark"] ::-webkit-scrollbar-thumb:hover { background: #48484A; }
+[data-theme="dark"] ::selection { background: #3D2B7A; color: #E0D4FF; }
+
 @keyframes spin { to { transform: rotate(360deg); } }
 
 /* Avatar hover */

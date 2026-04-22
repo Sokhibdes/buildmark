@@ -17,6 +17,13 @@ import p from './portal.module.css'
 
 type Tab = 'overview' | 'tasks' | 'content' | 'campaigns' | 'reports'
 
+const UZ_MONTHS = ['Yanvar','Fevral','Mart','Aprel','May','Iyun','Iyul','Avgust','Sentabr','Oktabr','Noyabr','Dekabr']
+const UZ_MONTHS_SHORT = ['yan','fev','mar','apr','may','iyn','iyl','avg','sen','okt','noy','dek']
+const fmtDate = (s?: string | null) => { if (!s) return ''; const [,m,d] = s.slice(0,10).split('-').map(Number); return `${d} ${UZ_MONTHS[m-1]}` }
+const fmtDateFull = (s?: string | null) => { if (!s) return ''; const [y,m,d] = s.slice(0,10).split('-').map(Number); return `${d} ${UZ_MONTHS[m-1]} ${y}` }
+const fmtMonth = (s?: string | null) => { if (!s) return ''; const [y,m] = s.slice(0,10).split('-').map(Number); return `${UZ_MONTHS[m-1]} ${y}` }
+const fmtDateTime = (iso?: string | null) => { if (!iso) return ''; const d = new Date(iso); return `${d.getDate()} ${UZ_MONTHS_SHORT[d.getMonth()]} ${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}` }
+
 function CommentSection({ taskId, open, comments, text, sending, onToggle, onTextChange, onSend }: {
   taskId: string; open: boolean
   comments?: any[]; text: string; sending: boolean
@@ -76,7 +83,7 @@ function CommentSection({ taskId, open, comments, text, sending, onToggle, onTex
                       fontSize: 10, color: '#c4c2bb', marginTop: 3,
                       textAlign: c.sender_type === 'staff' ? 'right' : 'left',
                     }}>
-                      {c.sender_type === 'staff' ? '👤 Xodim' : '🏢 Siz'} · {new Date(c.created_at).toLocaleString('uz-UZ', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                      {c.sender_type === 'staff' ? '👤 Xodim' : '🏢 Siz'} · {fmtDateTime(c.created_at)}
                     </div>
                   </div>
                 </div>
@@ -287,11 +294,22 @@ function PortalContent() {
     if (openComments === taskId) { setOpenComments(null); return }
     setOpenComments(taskId)
     if (!taskComments[taskId]) {
-      const res = await fetch(`/api/portal/comments?task_id=${taskId}`, {
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
-      })
-      const data = await res.json()
-      setTaskComments(prev => ({ ...prev, [taskId]: Array.isArray(data) ? data : [] }))
+      try {
+        const res = await fetch(`/api/portal/comments?task_id=${taskId}`, {
+          headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+        })
+        if (res.ok) {
+          const data = await res.json()
+          setTaskComments(prev => ({ ...prev, [taskId]: Array.isArray(data) ? data : [] }))
+        } else {
+          const err = await res.json().catch(() => ({}))
+          console.error('Load comments error:', res.status, err)
+          setTaskComments(prev => ({ ...prev, [taskId]: [] }))
+        }
+      } catch (err) {
+        console.error('Comments network error:', err)
+        setTaskComments(prev => ({ ...prev, [taskId]: [] }))
+      }
     }
   }
 
@@ -299,20 +317,29 @@ function PortalContent() {
     const text = commentText[taskId]?.trim()
     if (!text) return
     setCommentSending(taskId)
-    const res = await fetch('/api/portal/comments', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-      },
-      body: JSON.stringify({ task_id: taskId, content: text }),
-    })
-    if (res.ok) {
-      const newComment = await res.json()
-      setTaskComments(prev => ({ ...prev, [taskId]: [...(prev[taskId] ?? []), newComment] }))
-      setCommentText(prev => ({ ...prev, [taskId]: '' }))
+    try {
+      const res = await fetch('/api/portal/comments', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
+        },
+        body: JSON.stringify({ task_id: taskId, content: text }),
+      })
+      if (res.ok) {
+        const newComment = await res.json()
+        setTaskComments(prev => ({ ...prev, [taskId]: [...(prev[taskId] ?? []), newComment] }))
+        setCommentText(prev => ({ ...prev, [taskId]: '' }))
+      } else {
+        const err = await res.json().catch(() => ({}))
+        console.error('Comment error:', res.status, err)
+        alert(`Xatolik: ${err?.error ?? res.status}`)
+      }
+    } catch (err) {
+      console.error('Comment network error:', err)
+    } finally {
+      setCommentSending(null)
     }
-    setCommentSending(null)
   }
 
   /* ─── loading / error ─── */
@@ -654,7 +681,7 @@ function PortalContent() {
                               )}
                               {task.due_date && (
                                 <span style={{ fontSize: 11, color: '#71717a', fontWeight: 500 }}>
-                                  📅 {new Date(task.due_date).toLocaleDateString('uz-UZ', { month: 'long', day: 'numeric' })}
+                                  📅 {fmtDate(task.due_date)}
                                 </span>
                               )}
                             </div>
@@ -754,7 +781,7 @@ function PortalContent() {
                               )}
                               {task.due_date && (
                                 <span style={{ fontSize: 11, color: '#71717a', fontWeight: 500 }}>
-                                  📅 {new Date(task.due_date).toLocaleDateString('uz-UZ', { month: 'long', day: 'numeric' })}
+                                  📅 {fmtDate(task.due_date)}
                                 </span>
                               )}
                             </div>
@@ -823,7 +850,7 @@ function PortalContent() {
                             <div className={p.doneTitle}>{task.title}</div>
                             {task.stage_entered_at && (
                               <div className={p.doneMeta}>
-                                {new Date(task.stage_entered_at).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long', day: 'numeric' })}da yakunlandi
+                                {fmtDateFull(task.stage_entered_at)}da yakunlandi
                               </div>
                             )}
                           </div>
@@ -945,7 +972,7 @@ function PortalContent() {
               <div key={report.id} className={p.reportCard}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
                   <div className={p.reportMonth}>
-                    {new Date(report.month).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long' })}
+                    {fmtMonth(report.month)}
                   </div>
                   {report.is_sent_to_client && <span className={p.sentBadge}>✓ Yuborilgan</span>}
                 </div>

@@ -92,6 +92,7 @@ export interface Task {
   client?: Client
   assignee?: Profile
   stage?: WorkflowStage
+  creator?: { id: string; full_name: string }
 }
 
 export interface ContentItem {

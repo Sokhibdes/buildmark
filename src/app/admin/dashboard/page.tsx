@@ -5,9 +5,13 @@ import Link from 'next/link'
 import { AlertCircle, Clock, CheckCircle2, TrendingUp, Users, Megaphone, FileCheck } from 'lucide-react'
 import { getDashboardStats, getClients } from '@/lib/queries'
 import type { DashboardStats, Client, Task } from '@/types'
-import s from '../admin.module.css'
+import lightS from '../admin.module.css'
+import darkS from '../admin-dark.module.css'
+import { useTheme } from '@/lib/theme-context'
 
 export default function DashboardPage() {
+  const { theme } = useTheme()
+  const s = theme === 'dark' ? darkS : lightS
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [clients, setClients] = useState<Client[]>([])
   const [tasks, setTasks] = useState<Task[]>([])

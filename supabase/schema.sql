@@ -211,6 +211,28 @@ create index idx_campaigns_client on public.campaigns(client_id);
 create index idx_notifications_user on public.notifications(user_id, is_read);
 
 -- =============================================
+-- TASK COMMENTS (Vazifa izohlari — chat)
+-- =============================================
+create table public.task_comments (
+  id uuid default gen_random_uuid() primary key,
+  task_id uuid references public.tasks(id) on delete cascade not null,
+  sender_type text not null check (sender_type in ('client', 'staff')),
+  sender_name text not null,
+  content text not null,
+  created_at timestamptz default now()
+);
+
+create index idx_task_comments_task on public.task_comments(task_id, created_at);
+
+alter table public.task_comments enable row level security;
+
+-- Staff (admin/xodimlar) izohlarni ko'radi va yoza oladi
+create policy "Staff can manage task comments" on public.task_comments
+  for all using (
+    exists (select 1 from public.profiles where id = auth.uid() and role != 'client')
+  );
+
+-- =============================================
 -- ACTIVITY LOGS
 -- =============================================
 create table public.activity_logs (

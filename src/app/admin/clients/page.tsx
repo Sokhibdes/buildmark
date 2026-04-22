@@ -6,7 +6,9 @@ import { Search, Plus, Instagram, Send, Trash2 } from 'lucide-react'
 import { getClients, deleteClient } from '@/lib/queries'
 import type { Client } from '@/types'
 import { PACKAGE_LABELS } from '@/types'
-import s from '../admin.module.css'
+import lightS from '../admin.module.css'
+import darkS from '../admin-dark.module.css'
+import { useTheme } from '@/lib/theme-context'
 
 const STATUS_MAP = {
   active: { label: 'Aktiv', cls: 'badgeTeal' },
@@ -16,6 +18,8 @@ const STATUS_MAP = {
 }
 
 export default function ClientsPage() {
+  const { theme } = useTheme()
+  const s = theme === 'dark' ? darkS : lightS
   const [clients, setClients] = useState<Client[]>([])
   const [filtered, setFiltered] = useState<Client[]>([])
   const [search, setSearch] = useState('')

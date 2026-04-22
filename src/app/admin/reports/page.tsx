@@ -4,9 +4,13 @@ import { useState, useEffect } from 'react'
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, LineChart, Line } from 'recharts'
 import { getClients, getMonthlyReports, getCampaigns, getContentItems } from '@/lib/queries'
 import type { Client, MonthlyReport, Campaign, ContentItem } from '@/types'
-import s from '../admin.module.css'
+import lightS from '../admin.module.css'
+import darkS from '../admin-dark.module.css'
+import { useTheme } from '@/lib/theme-context'
 
 export default function ReportsPage() {
+  const { theme } = useTheme()
+  const s = theme === 'dark' ? darkS : lightS
   const [clients, setClients] = useState<Client[]>([])
   const [reports, setReports] = useState<MonthlyReport[]>([])
   const [campaigns, setCampaigns] = useState<Campaign[]>([])

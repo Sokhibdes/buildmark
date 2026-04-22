@@ -1,22 +1,22 @@
-/* kanban.module.css */
+/* kanban-dark.module.css */
 
 .workflowBanner {
-  background: #ffffff;
-  border: 1px solid #ebe9e2;
+  background: #1C1C1E;
+  border: 1px solid #2C2C2E;
   border-radius: 12px;
   padding: 12px 18px;
   margin-bottom: 18px;
-  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+  box-shadow: none;
 }
-.wfTitle { font-size: 10px; color: #a1a1aa; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; }
+.wfTitle { font-size: 10px; color: #6A6A6E; margin-bottom: 8px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.6px; }
 .wfSteps { display: flex; align-items: center; gap: 4px; flex-wrap: wrap; }
 .wfStep { display: flex; align-items: center; gap: 5px; }
 .wfDot {
   width: 8px; height: 8px; border-radius: 50%;
   flex-shrink: 0;
 }
-.wfName { font-size: 12px; color: #52525b; font-weight: 450; }
-.wfArrow { color: #d4d2cb; font-size: 11px; margin: 0 2px; }
+.wfName { font-size: 12px; color: #8A8A8E; font-weight: 450; }
+.wfArrow { color: #48484A; font-size: 11px; margin: 0 2px; }
 
 /* Board */
 .board {
@@ -32,34 +32,34 @@
 .column {
   flex-shrink: 0;
   width: 210px;
-  background: #f9f8f6;
-  border: 1px solid #ebe9e2;
+  background: #141414;
+  border: 1px solid #2C2C2E;
   border-radius: 12px;
   display: flex;
   flex-direction: column;
   max-height: calc(100vh - 290px);
   transition: background 0.15s;
 }
-.column:hover { background: #f7f6f3; }
+.column:hover { background: #1A1A1C; }
 
 .colHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
   padding: 11px 13px;
-  border-bottom: 1px solid #ebe9e2;
+  border-bottom: 1px solid #2C2C2E;
   border-radius: 12px 12px 0 0;
   border-top: 3px solid transparent;
 }
-.colName { font-size: 12px; font-weight: 600; color: #3f3f46; letter-spacing: -0.1px; }
+.colName { font-size: 12px; font-weight: 600; color: #E5E5E7; letter-spacing: -0.1px; }
 .colCount {
-  background: #ffffff;
-  border: 1px solid #e4e2db;
+  background: #1C1C1E;
+  border: 1px solid #3A3A3C;
   border-radius: 12px;
   padding: 1px 7px;
   font-size: 11px;
   font-weight: 600;
-  color: #a1a1aa;
+  color: #6A6A6E;
   min-width: 22px;
   text-align: center;
 }
@@ -73,77 +73,79 @@
   gap: 6px;
 }
 
-/* Task Card */
+/* Task Card — new design */
 .taskCard {
-  background: #ffffff;
-  border: 1px solid #ebe9e2;
-  border-radius: 10px;
-  padding: 11px 12px;
+  background: #1C1C1E;
+  border: 1px solid #2C2C2E;
+  border-radius: 12px;
+  padding: 13px 14px;
   cursor: grab;
   transition: all 0.18s cubic-bezier(0.4, 0, 0.2, 1);
   user-select: none;
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+  box-shadow: none;
 }
 .taskCard:hover {
-  border-color: #d4d2cb;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.09);
-  transform: translateY(-1px);
+  border-color: #3A3A3C;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.55);
+  transform: translateY(-2px);
 }
 .taskCard:active { cursor: grabbing; transform: translateY(0); }
 .dragging { opacity: 0; pointer-events: none; }
 
 /* Client row */
-.taskClientRow { display: flex; align-items: center; gap: 5px; margin-bottom: 6px; }
-.taskClientLabel { font-size: 9.5px; font-weight: 600; color: #c4c2bb; text-transform: uppercase; letter-spacing: 0.6px; flex-shrink: 0; }
-.taskClientName { font-size: 11px; font-weight: 600; color: #185fa5; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.taskClientRow { display: flex; align-items: center; gap: 5px; margin-bottom: 7px; }
+.taskClientLabel { font-size: 9.5px; font-weight: 600; color: #48484A; text-transform: uppercase; letter-spacing: 0.6px; flex-shrink: 0; }
+.taskClientName { font-size: 11px; font-weight: 600; color: #A78BFA; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Title */
+.taskHeader { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 9px; }
+.taskTitle { font-size: 13px; font-weight: 650; color: #FFFFFF; line-height: 1.45; flex: 1; letter-spacing: -0.15px; }
 
 /* ID + Date */
-.taskMetaRow { display: flex; align-items: center; gap: 8px; margin-bottom: 7px; }
-.taskIdBadge { font-size: 10px; font-weight: 600; color: #c4c2bb; font-family: 'SF Mono', 'Fira Code', monospace; letter-spacing: 0.3px; }
-.taskDateBadge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #a1a1aa; font-weight: 500; }
-.taskDateOverdue { color: #dc2626; }
-.taskCreator { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #c4c2bb; font-weight: 500; margin-left: auto; }
+.taskMetaRow { display: flex; align-items: center; gap: 8px; margin-bottom: 9px; }
+.taskIdBadge { font-size: 10px; font-weight: 600; color: #48484A; font-family: 'SF Mono', 'Fira Code', monospace; letter-spacing: 0.3px; }
+.taskDateBadge { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #8A8A8E; font-weight: 500; }
+.taskDateOverdue { color: #F87171; }
+.taskCreator { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; color: #48484A; font-weight: 500; margin-left: auto; }
 
-/* Tags — pill */
+/* Tags — pill-shaped */
 .taskTags { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; }
-.tag { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 20px; background: #f4f3f0; color: #71717a; }
-.tagTimer { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #92400e; font-weight: 600; background: #fef3c7; padding: 3px 9px; border-radius: 20px; }
-.tagLink { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #5b21b6; font-weight: 600; background: #ede9fe; padding: 3px 9px; border-radius: 20px; }
+.tag { display: inline-flex; align-items: center; gap: 3px; font-size: 10px; font-weight: 600; padding: 3px 9px; border-radius: 20px; background: #242428; color: #8A8A8E; }
+.tagTimer { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #FBBF24; font-weight: 600; background: #2D1A00; padding: 3px 9px; border-radius: 20px; }
+.tagLink { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: #A78BFA; font-weight: 600; background: #1E1533; padding: 3px 9px; border-radius: 20px; }
 
-.taskHeader { display: flex; align-items: flex-start; gap: 6px; margin-bottom: 6px; }
-.taskTitle { font-size: 12.5px; font-weight: 550; color: #18181b; line-height: 1.45; flex: 1; letter-spacing: -0.1px; }
-.taskClient { font-size: 10.5px; color: #185fa5; margin-bottom: 7px; font-weight: 500; }
-
+/* Legacy */
+.taskClient { font-size: 10.5px; color: #A78BFA; margin-bottom: 7px; font-weight: 500; }
 .taskFooter { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 8px; }
 .taskType {
   font-size: 10px; font-weight: 600;
-  background: #f4f3f0; color: #71717a;
+  background: #242428; color: #8A8A8E;
   padding: 2px 6px; border-radius: 4px;
   letter-spacing: 0.1px;
 }
 .taskAssignee {
   display: flex; align-items: center; gap: 3px;
-  font-size: 10px; color: #a1a1aa; font-weight: 500;
+  font-size: 10px; color: #6A6A6E; font-weight: 500;
   margin-left: auto;
 }
-.taskDue { font-size: 10px; color: #a1a1aa; font-weight: 500; }
-.taskDueOverdue { color: #dc2626; font-weight: 600; }
+.taskDue { font-size: 10px; color: #6A6A6E; font-weight: 500; }
+.taskDueOverdue { color: #F87171; font-weight: 600; }
 
 .taskTimer {
   display: inline-flex; align-items: center; gap: 3px;
-  font-size: 10px; color: #92400e; font-weight: 600;
-  background: #fef3c7; padding: 2px 6px; border-radius: 4px;
+  font-size: 10px; color: #FBBF24; font-weight: 600;
+  background: #2D1A00; padding: 2px 6px; border-radius: 4px;
 }
 .taskLink {
   display: inline-flex; align-items: center; gap: 3px;
-  font-size: 10px; color: #5b21b6; font-weight: 600;
-  background: #ede9fe; padding: 2px 6px; border-radius: 4px;
+  font-size: 10px; color: #A78BFA; font-weight: 600;
+  background: #1E1533; padding: 2px 6px; border-radius: 4px;
 }
 
 .timerBadge {
   display: inline-flex; align-items: center; gap: 6px;
-  font-size: 12px; color: #92400e; font-weight: 600;
-  background: #fef3c7; border: 1px solid #fde68a;
+  font-size: 12px; color: #FBBF24; font-weight: 600;
+  background: #2D1A00; border: 1px solid #78350F;
   border-radius: 8px; padding: 7px 12px; margin: 12px 0 4px;
 }
 
@@ -151,22 +153,22 @@
 .clientApprovedBadge {
   display: flex; align-items: center; gap: 4px;
   font-size: 10px; font-weight: 700;
-  color: #065f46; background: #d1fae5;
+  color: #34D399; background: #0A2218;
   border-radius: 7px 7px 0 0;
   padding: 5px 9px;
   margin: -11px -12px 9px -12px;
-  border-bottom: 1px solid #a7f3d0;
+  border-bottom: 1px solid #065f46;
 }
 .clientApprovedBanner {
   display: flex; align-items: flex-start; gap: 10px;
-  background: #ecfdf5; border: 1px solid #a7f3d0;
+  background: #0A2218; border: 1px solid #065f46;
   border-radius: 10px; padding: 12px 14px;
-  color: #065f46; font-size: 13px;
+  color: #34D399; font-size: 13px;
   margin: 12px 0 4px;
 }
 
 .emptyCol {
-  font-size: 12px; color: #c4c2bb;
+  font-size: 12px; color: #48484A;
   text-align: center; padding: 24px 0;
   font-weight: 500;
 }
@@ -174,8 +176,8 @@
 /* Modal */
 .overlay {
   position: fixed; inset: 0;
-  background: rgba(0,0,0,0.45);
-  backdrop-filter: blur(2px);
+  background: rgba(0,0,0,0.7);
+  backdrop-filter: blur(3px);
   z-index: 100;
   display: flex; align-items: center; justify-content: center;
   padding: 16px;
@@ -184,15 +186,15 @@
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
 
 .modal {
-  background: #ffffff;
+  background: #1C1C1E;
   border-radius: 14px;
-  border: 1px solid #ebe9e2;
+  border: 1px solid #2C2C2E;
   width: 100%; max-width: 520px;
   height: 90vh;
   max-height: 90vh;
   display: flex; flex-direction: column;
   overflow: hidden;
-  box-shadow: 0 20px 60px rgba(0,0,0,0.18), 0 4px 16px rgba(0,0,0,0.08);
+  box-shadow: 0 24px 80px rgba(0,0,0,0.65), 0 4px 16px rgba(0,0,0,0.35);
   animation: slideUp 0.18s cubic-bezier(0.4, 0, 0.2, 1);
 }
 @keyframes slideUp {
@@ -203,78 +205,75 @@
 .modalHeader {
   display: flex; align-items: center; justify-content: space-between;
   padding: 18px 22px;
-  border-bottom: 1px solid #f0ede6;
+  border-bottom: 1px solid #242428;
   flex-shrink: 0;
 }
-.modalTitle { font-size: 15px; font-weight: 700; color: #18181b; letter-spacing: -0.3px; }
+.modalTitle { font-size: 15px; font-weight: 700; color: #FFFFFF; letter-spacing: -0.3px; }
 .modalClose {
   background: none; border: none; cursor: pointer;
-  color: #a1a1aa; padding: 5px; border-radius: 6px;
+  color: #6A6A6E; padding: 5px; border-radius: 6px;
   display: flex; align-items: center; transition: all 0.15s;
 }
-.modalClose:hover { background: #f4f3f0; color: #18181b; }
+.modalClose:hover { background: #242428; color: #FFFFFF; }
 
 .modalBody { flex: 1; overflow-y: auto; padding: 20px 22px; min-height: 0; }
 .modalFooter {
   display: flex; justify-content: flex-end; gap: 8px;
   padding: 14px 22px;
-  border-top: 1px solid #f0ede6; flex-shrink: 0;
+  border-top: 1px solid #242428; flex-shrink: 0;
 }
 
 .formError {
-  font-size: 12px; color: #dc2626; font-weight: 500;
-  background: #fee2e2; border: 1px solid #fecaca;
+  font-size: 12px; color: #F87171; font-weight: 500;
+  background: #2D0F0F; border: 1px solid #5C1F1F;
   border-radius: 8px; padding: 9px 12px; margin-top: 6px;
 }
 
 /* Detail modal */
 .detailMeta {
   display: flex; flex-direction: column; gap: 0;
-  border: 1.5px solid #ebe9e2; border-radius: 10px; overflow: hidden;
+  border: 1.5px solid #2C2C2E; border-radius: 10px; overflow: hidden;
 }
 .detailRow {
   display: flex; align-items: center;
   min-height: 38px;
-  border-bottom: 1px solid #f4f3f0;
+  border-bottom: 1px solid #242428;
 }
 .detailRow:last-child { border-bottom: none; }
 .detailRowLabel {
   display: flex; align-items: center; gap: 6px;
   width: 112px; flex-shrink: 0;
   padding: 0 12px;
-  font-size: 12px; color: #a1a1aa; font-weight: 500;
-  background: #faf9f7; align-self: stretch;
-  border-right: 1px solid #f0ede6;
+  font-size: 12px; color: #6A6A6E; font-weight: 500;
+  background: #141414; align-self: stretch;
+  border-right: 1px solid #242428;
 }
 .detailSelect {
   flex: 1; border: none; outline: none;
-  padding: 8px 12px; font-size: 13px; color: #18181b;
+  padding: 8px 12px; font-size: 13px; color: #FFFFFF;
   font-family: inherit; background: transparent; cursor: pointer;
   transition: background 0.15s;
 }
-.detailSelect:focus { background: #f0f7ff; }
+.detailSelect:focus { background: #1E1533; }
 .detailInput {
   flex: 1; border: none; outline: none;
-  padding: 8px 12px; font-size: 13px; color: #18181b;
+  padding: 8px 12px; font-size: 13px; color: #FFFFFF;
   font-family: inherit; background: transparent; transition: background 0.15s;
 }
-.detailInput:focus { background: #f0f7ff; }
-.detailCreated { font-size: 11px; color: #c4c2bb; margin-top: 12px; text-align: right; }
+.detailInput:focus { background: #1E1533; }
+.detailCreated { font-size: 11px; color: #48484A; margin-top: 12px; text-align: right; }
 
 /* ═══════════════ MOBILE ═══════════════ */
 @media (max-width: 768px) {
-  /* Board */
   .column { width: 175px; }
   .taskCard { padding: 10px 11px; }
   .taskTitle { font-size: 12px; }
 
-  /* Overlay — modal pastdan chiqadi */
   .overlay {
     align-items: flex-end;
     padding: 0;
   }
 
-  /* Modal — full-width bottom sheet */
   .modal {
     max-width: 100%;
     width: 100%;
@@ -284,12 +283,11 @@
     border-bottom: none;
   }
 
-  /* Handle bar */
   .modal::before {
     content: '';
     display: block;
     width: 36px; height: 4px;
-    background: #e4e2db;
+    background: #3A3A3C;
     border-radius: 2px;
     margin: 10px auto 0;
     flex-shrink: 0;
@@ -300,11 +298,9 @@
   .modalBody { padding: 12px 16px; }
   .modalFooter { padding: 10px 16px; }
 
-  /* Detail rows compact */
   .detailRowLabel { width: 82px; font-size: 11px; padding: 0 10px; }
   .detailSelect, .detailInput { font-size: 13px; padding: 7px 10px; }
   .detailRow { min-height: 42px; }
 
-  /* Form inputs larger touch targets */
   .workflowBanner { padding: 10px 14px; }
 }
