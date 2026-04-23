@@ -254,7 +254,11 @@ function PortalContent() {
     gray: '#71717a', blue: '#185fa5', teal: '#0f6e56',
     amber: '#854f0b', purple: '#534ab7', green: '#3b6d11',
   }
-  const stageSlug = (t: Task) => (t.stage as any)?.slug as string | undefined
+  const PACKAGE_POST_COUNT: Record<string, number | null> = {
+  starter: 12, standard: 16, premium: 30, full: null,
+}
+
+const stageSlug = (t: Task) => (t.stage as any)?.slug as string | undefined
   const planTasks         = tasks.filter(t => stageSlug(t) === 'kontent_plan')
   const postingCheckTasks = tasks.filter(t => stageSlug(t) === 'posting_check')
   const doneTasks         = tasks.filter(t => stageSlug(t) === 'bajarildi')
@@ -408,8 +412,11 @@ function PortalContent() {
                 background: 'linear-gradient(135deg, #dbeafe, #bfdbfe)',
                 color: '#1d4ed8', display: 'flex', alignItems: 'center',
                 justifyContent: 'center', fontSize: 14, fontWeight: 700,
+                overflow: 'hidden',
               }}>
-                {c.company_name.slice(0, 2).toUpperCase()}
+                {c.logo_url
+                  ? <img src={c.logo_url} alt={c.company_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : c.company_name.slice(0, 2).toUpperCase()}
               </div>
               <div>
                 <div style={{ fontSize: 14, fontWeight: 600, color: '#18181b' }}>{c.company_name}</div>
@@ -448,7 +455,9 @@ function PortalContent() {
       <header className={p.header}>
         <div className={p.headerInner}>
           <div className={p.headerLeft}>
-            <div className={p.clientAvatar}>{initials}</div>
+            <div className={p.clientAvatar}>
+              {client.logo_url ? <img src={client.logo_url} alt={client.company_name} /> : initials}
+            </div>
             <div>
               <div className={p.clientName}>{client.company_name}</div>
               <div className={p.clientSub}>Grafuz CRM — Mijoz portali</div>
@@ -597,33 +606,42 @@ function PortalContent() {
             {/* Oy bo'yicha reja va progress */}
             <div className={p.sectionTitle} style={{ marginTop: 8 }}><TrendingUp size={14} />Oy bo&apos;yicha ish holati</div>
             <div className={p.progressCard}>
-              {[
-                ['Oy uchun reja (postlar)', client.monthly_post_count, ''],
-                ['Posting qilindi', doneTasks.length, '#0f6e56'],
-                ['Rejalashtirilgan (kontent plan)', planTasks.length, '#534ab7'],
-                ['Sizni kutmoqda', postingCheckTasks.length + pending.length, '#854f0b'],
-              ].map(([label, value, color]) => (
-                <div key={label as string} className={p.progressRow}>
-                  <span>{label}</span>
-                  <span style={{ fontWeight: 600, color: (color as string) || '#18181b' }}>{value}</span>
-                </div>
-              ))}
-              {client.monthly_post_count > 0 && (
-                <div style={{ marginTop: 14 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#888780', marginBottom: 5 }}>
-                    <span>Bajarilish darajasi</span>
-                    <span>{Math.min(Math.round((doneTasks.length / Math.max(client.monthly_post_count, 1)) * 100), 100)}%</span>
-                  </div>
-                  <div style={{ height: 7, background: '#f1efe8', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{
-                      height: '100%', borderRadius: 4,
-                      background: 'linear-gradient(90deg, #0f6e56, #1d9e75)',
-                      width: `${Math.min(Math.round((doneTasks.length / Math.max(client.monthly_post_count, 1)) * 100), 100)}%`,
-                      transition: 'width 0.4s ease',
-                    }} />
-                  </div>
-                </div>
-              )}
+              {(() => {
+                const monthlyTarget = PACKAGE_POST_COUNT[client.package] ?? null
+                const targetDisplay = monthlyTarget === null ? 'Cheksiz' : monthlyTarget
+                const pct = monthlyTarget ? Math.min(Math.round((doneTasks.length / monthlyTarget) * 100), 100) : null
+                return (
+                  <>
+                    {[
+                      { label: 'Tarif bo\'yicha reja', value: targetDisplay, color: '' },
+                      { label: 'Posting qilindi', value: doneTasks.length, color: '#0f6e56' },
+                      { label: 'Rejalashtirilgan (kontent plan)', value: planTasks.length, color: '#534ab7' },
+                      { label: 'Sizni kutmoqda', value: postingCheckTasks.length + pending.length, color: '#854f0b' },
+                    ].map(({ label, value, color }) => (
+                      <div key={label} className={p.progressRow}>
+                        <span>{label}</span>
+                        <span style={{ fontWeight: 600, color: color || '#18181b' }}>{value}</span>
+                      </div>
+                    ))}
+                    {pct !== null && (
+                      <div style={{ marginTop: 14 }}>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#888780', marginBottom: 5 }}>
+                          <span>Bajarilish darajasi</span>
+                          <span>{pct}%</span>
+                        </div>
+                        <div style={{ height: 7, background: '#f1efe8', borderRadius: 4, overflow: 'hidden' }}>
+                          <div style={{
+                            height: '100%', borderRadius: 4,
+                            background: 'linear-gradient(90deg, #0f6e56, #1d9e75)',
+                            width: `${pct}%`,
+                            transition: 'width 0.4s ease',
+                          }} />
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )
+              })()}
             </div>
           </div>
         )}

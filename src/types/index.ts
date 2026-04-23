@@ -44,6 +44,7 @@ export interface Client {
   portal_access: boolean
   notes?: string
   logo_url?: string
+  fb_ad_account_id?: string
   instagram_url?: string
   telegram_url?: string
   facebook_url?: string
@@ -138,6 +139,7 @@ export interface Campaign {
   ctr?: number
   cpc?: number
   notes?: string
+  facebook_campaign_id?: string
   created_by?: string
   created_at: string
   client?: Client

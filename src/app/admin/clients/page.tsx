@@ -125,9 +125,12 @@ export default function ClientsPage() {
                           width: 32, height: 32, borderRadius: 8,
                           background: '#e6f1fb', color: '#185fa5',
                           display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 11, fontWeight: 600, flexShrink: 0
+                          fontSize: 11, fontWeight: 600, flexShrink: 0,
+                          overflow: 'hidden',
                         }}>
-                          {client.company_name.slice(0, 2).toUpperCase()}
+                          {client.logo_url
+                            ? <img src={client.logo_url} alt={client.company_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                            : client.company_name.slice(0, 2).toUpperCase()}
                         </div>
                         <div>
                           <div style={{ fontWeight: 500 }}>{client.company_name}</div>

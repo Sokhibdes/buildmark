@@ -421,11 +421,36 @@ export async function approveContent(id: string, approved: boolean, feedback?: s
 // =============================================
 // CAMPAIGNS
 // =============================================
+export async function createCampaign(data: Partial<Campaign>): Promise<Campaign> {
+  const supabase = createClient()
+  const { data: created, error } = await supabase
+    .from('campaigns').insert(data).select('*, client:clients(id, company_name, logo_url)').single()
+  if (error) throw error
+  log('created', 'campaign', created.id, created.name)
+  return created
+}
+
+export async function updateCampaign(id: string, data: Partial<Campaign>): Promise<Campaign> {
+  const supabase = createClient()
+  const { data: updated, error } = await supabase
+    .from('campaigns').update(data).eq('id', id).select('*, client:clients(id, company_name, logo_url)').single()
+  if (error) throw error
+  log('updated', 'campaign', updated.id, updated.name)
+  return updated
+}
+
+export async function deleteCampaign(id: string, name?: string): Promise<void> {
+  const supabase = createClient()
+  const { error } = await supabase.from('campaigns').delete().eq('id', id)
+  if (error) throw error
+  log('deleted', 'campaign', id, name)
+}
+
 export async function getCampaigns(clientId?: string): Promise<Campaign[]> {
   const supabase = createClient()
   let query = supabase
     .from('campaigns')
-    .select(`*, client:clients(id, company_name)`)
+    .select(`*, client:clients(id, company_name, logo_url)`)
     .order('created_at', { ascending: false })
 
   if (clientId) query = query.eq('client_id', clientId)
@@ -453,6 +478,20 @@ export async function getMonthlyReports(clientId?: string): Promise<MonthlyRepor
 // =============================================
 // TEAM / PROFILES
 // =============================================
+export async function uploadClientLogo(clientId: string, file: File): Promise<string> {
+  const supabase = createClient()
+  const ext = file.name.split('.').pop() ?? 'jpg'
+  const path = `clients/${clientId}.${ext}`
+  const { error } = await supabase.storage
+    .from('avatars')
+    .upload(path, file, { upsert: true, contentType: file.type })
+  if (error) throw error
+  const { data } = supabase.storage.from('avatars').getPublicUrl(path)
+  const url = `${data.publicUrl}?t=${Date.now()}`
+  await supabase.from('clients').update({ logo_url: url }).eq('id', clientId)
+  return url
+}
+
 export async function uploadAvatar(userId: string, file: File): Promise<string> {
   const supabase = createClient()
   const ext = file.name.split('.').pop() ?? 'jpg'
