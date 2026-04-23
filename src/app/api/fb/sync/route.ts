@@ -3,12 +3,11 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 import { getFBCampaigns, getCampaignInsights } from '@/lib/facebook'
 
-const supabase = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-)
-
 export async function POST() {
+  const supabase = createClient(
+    process.env.NEXT_PUBLIC_SUPABASE_URL!,
+    process.env.SUPABASE_SERVICE_ROLE_KEY!
+  )
   const token = process.env.FB_ACCESS_TOKEN
   if (!token) return NextResponse.json({ error: 'FB_ACCESS_TOKEN topilmadi' }, { status: 500 })
 
