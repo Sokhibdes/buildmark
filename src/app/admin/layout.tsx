@@ -121,7 +121,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <div className={styles.mobileOverlay} onClick={() => setMobileSidebarOpen(false)} />
       )}
 
-      <aside className={`${styles.sidebar} ${sidebarExpanded ? styles.sidebarExpanded : ''} ${mobileSidebarOpen ? (styles as any).sidebarOpen : (styles as any).sidebarClosed}`}>
+      <aside className={[
+        styles.sidebar,
+        sidebarExpanded ? styles.sidebarExpanded : '',
+        mobileSidebarOpen ? (styles as any).sidebarOpen : (styles as any).sidebarClosed,
+      ].filter(Boolean).join(' ')}>
 
         {/* Sidebar header: logo + brand text + hamburger */}
         <div className={styles.sidebarHeader}>

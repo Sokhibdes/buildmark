@@ -49,7 +49,7 @@ export interface KanbanStats {
 export async function getKanbanStats(from: string, to: string): Promise<KanbanStats> {
   const supabase = createClient()
 
-  const { data: stages } = await supabase.from('workflow_stages').select('id, slug')
+  const { data: stages } = await supabase.from('workflow_stages').select('id, slug, name')
   const sid = (slug: string) => stages?.find(s => s.slug === slug)?.id ?? null
   const toEnd = to + 'T23:59:59.999Z'
 
@@ -60,10 +60,22 @@ export async function getKanbanStats(from: string, to: string): Promise<KanbanSt
       .eq('stage_id', id).gte('created_at', from).lte('created_at', toEnd)
   }
 
+  // Kontent plan stageni slug yoki nom orqali topamiz
+  const contentPlanStage = stages?.find(s =>
+    s.slug.toLowerCase().includes('kontent') ||
+    s.slug.toLowerCase().includes('content') ||
+    s.name.toLowerCase().includes('kontent')
+  )
+  const contentPlanId = contentPlanStage?.id ?? null
+  console.log('[KanbanStats] stages:', stages?.map(s => `${s.name}(${s.slug})`).join(', '))
+  console.log('[KanbanStats] contentPlanStage:', contentPlanStage)
+
   const [clients, jarayonda, kontentplan, bajarildi, overdue] = await Promise.all([
     supabase.from('clients').select('*', { count: 'exact', head: true }).eq('status', 'active'),
     byStage('jarayonda'),
-    byStage('kontentplan'),
+    contentPlanId
+      ? supabase.from('tasks').select('*', { count: 'exact', head: true }).eq('stage_id', contentPlanId)
+      : Promise.resolve({ count: 0 }),
     byStage('bajarildi'),
     supabase.from('tasks').select('*', { count: 'exact', head: true })
       .lt('due_date', new Date().toISOString().split('T')[0])
@@ -341,6 +353,17 @@ export async function getClientAllTasks(clientId: string): Promise<Task[]> {
     .order('created_at', { ascending: false })
   if (error) throw error
   return data ?? []
+}
+
+export async function getClientApprovedPlansCount(clientId: string): Promise<number> {
+  const supabase = createClient()
+  const { data: stage } = await supabase
+    .from('workflow_stages').select('id').eq('slug', 'tasdiqlandi').single()
+  if (!stage) return 0
+  const { count } = await supabase
+    .from('tasks').select('*', { count: 'exact', head: true })
+    .eq('client_id', clientId).eq('stage_id', stage.id)
+  return count ?? 0
 }
 
 export async function deleteTask(id: string, title?: string): Promise<void> {

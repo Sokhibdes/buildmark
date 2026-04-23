@@ -88,6 +88,86 @@ function TimerDisplay({ startedAt, totalPausedMs = 0 }: { startedAt: string; tot
   return <>{elapsedTimer(startedAt, totalPausedMs)}</>
 }
 
+function RichTextEditor({
+  value, onChange, placeholder = "Tavsif yozing...", minHeight = 88,
+}: {
+  value: string; onChange: (html: string) => void; placeholder?: string; minHeight?: number
+}) {
+  const { theme } = useTheme()
+  const isDark = theme === 'dark'
+  const ref = useRef<HTMLDivElement>(null)
+  const skipSync = useRef(false)
+  const [empty, setEmpty] = useState(!value?.replace(/<[^>]*>/g, '').trim())
+
+  useEffect(() => {
+    if (!ref.current || skipSync.current) { skipSync.current = false; return }
+    if (ref.current.innerHTML !== (value || '')) {
+      ref.current.innerHTML = value || ''
+      setEmpty(!ref.current.textContent?.trim())
+    }
+  }, [value])
+
+  const exec = (cmd: string) => {
+    ref.current?.focus()
+    document.execCommand(cmd, false)
+    skipSync.current = true
+    onChange(ref.current?.innerHTML || '')
+    setEmpty(!ref.current?.textContent?.trim())
+  }
+
+  const border      = isDark ? '#3A3A3C' : '#e4e2db'
+  const bg          = isDark ? '#1C1C1E' : '#fff'
+  const toolbarBg   = isDark ? '#141414' : '#faf9f7'
+  const textColor   = isDark ? '#E5E5E7' : '#18181b'
+  const phColor     = isDark ? '#48484A' : '#c4c2bb'
+  const btnColor    = isDark ? '#6A6A6E' : '#a1a1aa'
+  const btnHoverBg  = isDark ? '#2C2C2E' : '#f0ede6'
+  const btnHoverClr = isDark ? '#E5E5E7' : '#18181b'
+
+  const TOOLS = [
+    { cmd: 'bold',                label: 'B',  extra: { fontWeight: 700 as const },               title: 'Qalin (Ctrl+B)' },
+    { cmd: 'italic',              label: 'I',  extra: { fontStyle: 'italic' as const },            title: 'Kursiv (Ctrl+I)' },
+    { cmd: 'underline',           label: 'U̲',  extra: {},                                          title: "Ta'kidlash (Ctrl+U)" },
+    { cmd: 'insertUnorderedList', label: '• —', extra: {},                                         title: "Ro'yxat" },
+    { cmd: 'insertOrderedList',   label: '1. —', extra: {},                                        title: "Raqamli ro'yxat" },
+  ]
+
+  return (
+    <div style={{ border: `1.5px solid ${border}`, borderRadius: 8, overflow: 'hidden', background: bg, transition: 'border-color 0.15s' }}>
+      <div style={{ display: 'flex', gap: 1, padding: '4px 6px', borderBottom: `1px solid ${border}`, background: toolbarBg }}>
+        {TOOLS.map(t => (
+          <button key={t.cmd} type="button" title={t.title}
+            onMouseDown={e => { e.preventDefault(); exec(t.cmd) }}
+            onMouseEnter={e => { (e.currentTarget as HTMLButtonElement).style.background = btnHoverBg; (e.currentTarget as HTMLButtonElement).style.color = btnHoverClr }}
+            onMouseLeave={e => { (e.currentTarget as HTMLButtonElement).style.background = 'none'; (e.currentTarget as HTMLButtonElement).style.color = btnColor }}
+            style={{ ...t.extra, background: 'none', border: 'none', borderRadius: 5, padding: '3px 8px', cursor: 'pointer', fontSize: 12, color: btnColor, fontFamily: 'inherit', lineHeight: 1.5, transition: 'all 0.1s' }}
+          >
+            {t.label}
+          </button>
+        ))}
+      </div>
+      <div style={{ position: 'relative' }}>
+        {empty && (
+          <div style={{ position: 'absolute', top: 9, left: 13, right: 13, fontSize: 13, color: phColor, pointerEvents: 'none', userSelect: 'none', lineHeight: 1.6 }}>
+            {placeholder}
+          </div>
+        )}
+        <div
+          ref={ref}
+          contentEditable
+          suppressContentEditableWarning
+          onInput={() => {
+            skipSync.current = true
+            setEmpty(!ref.current?.textContent?.trim())
+            onChange(ref.current?.innerHTML || '')
+          }}
+          style={{ minHeight, padding: '9px 13px', outline: 'none', fontSize: 13, color: textColor, lineHeight: 1.6, fontFamily: 'inherit' }}
+        />
+      </div>
+    </div>
+  )
+}
+
 type FormData = {
   title: string; description: string; task_type: string
   priority: string; client_id: string; assigned_to: string[]
@@ -302,14 +382,17 @@ export default function TasksPage() {
     if (!taskId) return
     setDragging(null)
     draggingRef.current = null
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, stage_id: stageId } : t))
     const targetSlug = stagesRef.current.find(s => s.id === stageId)?.slug
+    const isDone = targetSlug === 'bajarildi'
+    setTasks(prev => prev.map(t =>
+      t.id === taskId ? { ...t, stage_id: stageId, ...(isDone ? { status: 'done' } : {}) } : t
+    ))
     if (targetSlug === 'tasdiqlandi') {
       ownChangesRef.current.add(taskId)
       playSound('tasdiqlandi')
       setTimeout(() => ownChangesRef.current.delete(taskId), 3000)
     }
-    await updateTask(taskId, { stage_id: stageId })
+    await updateTask(taskId, { stage_id: stageId, ...(isDone ? { status: 'done' } : {}) })
   }
 
   const openNew = () => { setForm({ ...EMPTY, stage_id: stages[0]?.id ?? '' }); setFormErr(''); setShowNew(true) }
@@ -490,8 +573,11 @@ export default function TasksPage() {
       </div>
       <div className={s.formGroup}>
         <label className={s.label}>Tavsif</label>
-        <textarea className={s.textarea} placeholder="Qo'shimcha ma'lumot..." value={f.description}
-          onChange={e => set(p => ({ ...p, description: e.target.value }))} />
+        <RichTextEditor
+          value={f.description}
+          onChange={html => set(p => ({ ...p, description: html }))}
+          placeholder="Qo'shimcha ma'lumot..."
+        />
       </div>
     </>
   )
@@ -691,7 +777,7 @@ export default function TasksPage() {
             </div>
             <form onSubmit={handleCreate} style={{ display: 'flex', flexDirection: 'column', flex: 1, minHeight: 0, overflow: 'hidden' }}>
               <div className={k.modalBody}>
-                <FormFields f={form} set={setForm} />
+                {FormFields({ f: form, set: setForm })}
                 {formErr && <div className={k.formError}>{formErr}</div>}
               </div>
               <div className={k.modalFooter}>
@@ -829,9 +915,12 @@ export default function TasksPage() {
                 </div>
                 <div className={s.formGroup}>
                   <label className={s.label}>Tavsif</label>
-                  <textarea className={s.textarea} style={{ minHeight: 90 }} placeholder="Tavsif yo'q..."
+                  <RichTextEditor
                     value={edit.description}
-                    onChange={e => { setEdit(p => ({ ...p, description: e.target.value })); setChanged(true) }} />
+                    onChange={html => { setEdit(p => ({ ...p, description: html })); setChanged(true) }}
+                    placeholder="Tavsif yo'q..."
+                    minHeight={90}
+                  />
                 </div>
                 <div className={k.detailCreated}>
                   Yaratilgan: {new Date(detail.created_at).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long', day: 'numeric' })}

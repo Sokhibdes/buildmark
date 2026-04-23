@@ -8,7 +8,7 @@ import {
 } from 'lucide-react'
 import {
   getClientsByEmail, getClientPortalData, getClientContentCounts, approveContent,
-  getClientAllTasks, approveClientTask, approvePostingCheck,
+  getClientAllTasks, approveClientTask, approvePostingCheck, getClientApprovedPlansCount,
 } from '@/lib/queries'
 import { createClient } from '@/lib/supabase/client'
 import type { Client, ContentItem, Campaign, MonthlyReport, Task } from '@/types'
@@ -142,6 +142,7 @@ function PortalContent() {
   const [error, setError]         = useState('')
   const [accessToken, setAccessToken] = useState<string | null>(null)
   const [contentCounts, setContentCounts] = useState<Record<string, number>>({})
+  const [approvedPlansCount, setApprovedPlansCount] = useState(0)
   const [approving, setApproving]     = useState<string | null>(null)
   const [feedback, setFeedback]       = useState<Record<string, string>>({})
   const [openComments, setOpenComments] = useState<string | null>(null)
@@ -179,10 +180,11 @@ function PortalContent() {
         const clientData = clientList[0]
         clientId = clientData.id
         setClient(clientData)
-        const [data, allTasks, counts] = await Promise.all([
+        const [data, allTasks, counts, approvedCount] = await Promise.all([
           getClientPortalData(clientData.id),
           getClientAllTasks(clientData.id),
           getClientContentCounts(clientData.id),
+          getClientApprovedPlansCount(clientData.id),
         ])
         setContent(data.content_items)
         setCampaigns(data.campaigns)
@@ -190,21 +192,24 @@ function PortalContent() {
         setPending(data.pending_approvals)
         setTasks(allTasks)
         setContentCounts(counts)
+        setApprovedPlansCount(approvedCount)
       }
       // Ko'p kompaniya bo'lsa — selector ko'rsatiladi (client = null qoladi)
       setLoading(false)
 
       interval = setInterval(async () => {
         if (!clientId) return
-        const [fresh, freshTasks, freshCounts] = await Promise.all([
+        const [fresh, freshTasks, freshCounts, freshApproved] = await Promise.all([
           getClientPortalData(clientId),
           getClientAllTasks(clientId),
           getClientContentCounts(clientId),
+          getClientApprovedPlansCount(clientId),
         ])
         setContent(fresh.content_items)
         setPending(fresh.pending_approvals)
         setTasks(freshTasks)
         setContentCounts(freshCounts)
+        setApprovedPlansCount(freshApproved)
         const { data: { session: s } } = await supabase.auth.getSession()
         if (s) setAccessToken(s.access_token)
       }, 15000)
@@ -222,10 +227,11 @@ function PortalContent() {
   const selectCompany = async (selected: Client) => {
     setLoading(true)
     setClient(selected)
-    const [data, allTasks, counts] = await Promise.all([
+    const [data, allTasks, counts, approvedCount] = await Promise.all([
       getClientPortalData(selected.id),
       getClientAllTasks(selected.id),
       getClientContentCounts(selected.id),
+      getClientApprovedPlansCount(selected.id),
     ])
     setContent(data.content_items)
     setCampaigns(data.campaigns)
@@ -233,6 +239,7 @@ function PortalContent() {
     setPending(data.pending_approvals)
     setTasks(allTasks)
     setContentCounts(counts)
+    setApprovedPlansCount(approvedCount)
     setLoading(false)
   }
 
@@ -432,8 +439,6 @@ function PortalContent() {
   if (!client) return null
 
   const initials       = client.company_name.slice(0, 2).toUpperCase()
-  const publishedPosts = contentCounts['published'] ?? 0
-  const progressPct    = Math.min(Math.round((publishedPosts / Math.max(client.monthly_post_count, 1)) * 100), 100)
   const totalPendingCount = pending.length + planTasks.length + postingCheckTasks.length
 
   return (
@@ -520,123 +525,106 @@ function PortalContent() {
         {/* ══ OVERVIEW ══ */}
         {tab === 'overview' && (
           <div>
-            {/* Kontent holati statistikasi */}
-            <div className={p.sectionTitle}><CheckSquare size={14} />Kontent holati</div>
+            {/* Kontent holati — 4 ta asosiy ko'rsatkich */}
+            <div className={p.sectionTitle}><CheckSquare size={14} />Loyiha holati</div>
             <div className={p.statsGrid}>
               <div className={p.statCard}>
-                <div className={p.statNum} style={{ color: '#0f6e56' }}>
-                  {contentCounts['published'] ?? 0}
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#0f6e56', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <CheckCircle size={12} /> Posting qilindi
                 </div>
-                <div className={p.statLabel}>Nashr qilindi</div>
+                <div className={p.statNum} style={{ color: '#0f6e56' }}>{doneTasks.length}</div>
+                <div className={p.statLabel}>Yakunlangan vazifalar</div>
               </div>
               <div className={p.statCard}>
-                <div className={p.statNum} style={{ color: '#185fa5' }}>
-                  {contentCounts['approved'] ?? 0}
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#185fa5', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <CheckSquare size={12} /> Tasdiqlandi
                 </div>
-                <div className={p.statLabel}>Tasdiqlangan</div>
+                <div className={p.statNum} style={{ color: '#185fa5' }}>{approvedPlansCount}</div>
+                <div className={p.statLabel}>Siz tasdiqlagan rejalar</div>
               </div>
               <div className={p.statCard}>
-                <div className={p.statNum} style={{ color: '#534ab7' }}>
-                  {contentCounts['scheduled'] ?? 0}
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#534ab7', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <ClipboardList size={12} /> Rejalashtirilgan
                 </div>
-                <div className={p.statLabel}>Rejalashtirilgan</div>
+                <div className={p.statNum} style={{ color: '#534ab7' }}>{planTasks.length}</div>
+                <div className={p.statLabel}>Kontent plandagi vazifalar</div>
               </div>
               <div className={p.statCard}>
-                <div className={p.statNum} style={{ color: '#854f0b' }}>
-                  {contentCounts['client_approval'] ?? 0}
+                <div style={{ fontSize: 11, fontWeight: 600, color: '#854f0b', textTransform: 'uppercase', letterSpacing: '0.4px', marginBottom: 6, display: 'flex', alignItems: 'center', gap: 5 }}>
+                  <Bell size={12} /> Sizni kutmoqda
                 </div>
+                <div className={p.statNum} style={{ color: '#854f0b' }}>{postingCheckTasks.length + pending.length}</div>
                 <div className={p.statLabel}>Tasdiqlash kerak</div>
               </div>
             </div>
 
-            {/* Yangi so'rovlar banner */}
-            {newRequestCount > 0 && (
-              <div className={p.newRequestBanner}>
-                <div className={p.newRequestBannerLeft}>
-                  <Bell size={16} />
-                  <div>
-                    <div className={p.newRequestBannerTitle}>{newRequestCount} ta yangi so&apos;rov keldi</div>
-                    <div className={p.newRequestBannerSub}>Tayyor kontent sizni kutmoqda — ko&apos;rib chiqing</div>
-                  </div>
-                </div>
-                <button className={`${p.approvalBtn} ${p.approvalBtnApprove}`} onClick={() => setTab('tasks')}>
-                  Ko&apos;rish <ExternalLink size={12} />
-                </button>
-              </div>
-            )}
-
-            {/* Kontent plan tasdiqlash kerak */}
-            {planTasks.length > 0 && (
-              <div className={p.newRequestBanner} style={{ borderColor: '#fac775', background: '#fffbf2' }}>
-                <div className={p.newRequestBannerLeft}>
-                  <Clock size={16} style={{ color: '#854f0b' }} />
-                  <div>
-                    <div className={p.newRequestBannerTitle} style={{ color: '#854f0b' }}>
-                      {planTasks.length} ta kontent plan tasdiqlash kutmoqda
+            {/* Diqqat — yangi so'rovlar */}
+            {(newRequestCount > 0 || planTasks.length > 0) && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10, marginBottom: 24 }}>
+                {newRequestCount > 0 && (
+                  <div className={p.newRequestBanner}>
+                    <div className={p.newRequestBannerLeft}>
+                      <Bell size={16} />
+                      <div>
+                        <div className={p.newRequestBannerTitle}>{newRequestCount} ta tayyor kontent sizni kutmoqda</div>
+                        <div className={p.newRequestBannerSub}>Ko&apos;rib chiqing va tasdiqlang</div>
+                      </div>
                     </div>
-                    <div className={p.newRequestBannerSub}>Oy uchun kontent rejasini ko&apos;rib tasdiqlang</div>
+                    <button className={`${p.approvalBtn} ${p.approvalBtnApprove}`} onClick={() => setTab('tasks')}>
+                      Ko&apos;rish <ExternalLink size={12} />
+                    </button>
                   </div>
-                </div>
-                <button className={`${p.approvalBtn} ${p.approvalBtnApprove}`} onClick={() => setTab('tasks')}>
-                  Tasdiqlash
-                </button>
+                )}
+                {planTasks.length > 0 && (
+                  <div className={p.newRequestBanner} style={{ borderColor: '#fac775', background: '#fffbf2' }}>
+                    <div className={p.newRequestBannerLeft}>
+                      <Clock size={16} style={{ color: '#854f0b' }} />
+                      <div>
+                        <div className={p.newRequestBannerTitle} style={{ color: '#854f0b' }}>
+                          {planTasks.length} ta kontent plan tasdiqlash kutmoqda
+                        </div>
+                        <div className={p.newRequestBannerSub}>Oy uchun kontent rejasini ko&apos;rib tasdiqlang</div>
+                      </div>
+                    </div>
+                    <button className={`${p.approvalBtn} ${p.approvalBtnApprove}`} onClick={() => setTab('tasks')}>
+                      Tasdiqlash
+                    </button>
+                  </div>
+                )}
               </div>
             )}
 
-            {/* Progress */}
-            <div className={p.sectionTitle} style={{ marginTop: 24 }}><TrendingUp size={14} />Joriy oy kontent holati</div>
+            {/* Oy bo'yicha reja va progress */}
+            <div className={p.sectionTitle} style={{ marginTop: 8 }}><TrendingUp size={14} />Oy bo&apos;yicha ish holati</div>
             <div className={p.progressCard}>
               {[
-                ['Oy uchun reja', client.monthly_post_count, ''],
-                ['Nashr qilingan', publishedPosts, '#0f6e56'],
-                ['Tasdiqlash kutmoqda', contentCounts['client_approval'] ?? 0, '#854f0b'],
-                ['Rejalashtirilgan', contentCounts['scheduled'] ?? 0, '#534ab7'],
+                ['Oy uchun reja (postlar)', client.monthly_post_count, ''],
+                ['Posting qilindi', doneTasks.length, '#0f6e56'],
+                ['Rejalashtirilgan (kontent plan)', planTasks.length, '#534ab7'],
+                ['Sizni kutmoqda', postingCheckTasks.length + pending.length, '#854f0b'],
               ].map(([label, value, color]) => (
                 <div key={label as string} className={p.progressRow}>
                   <span>{label}</span>
-                  <span style={{ fontWeight: 500, color: (color as string) || undefined }}>{value}</span>
+                  <span style={{ fontWeight: 600, color: (color as string) || '#18181b' }}>{value}</span>
                 </div>
               ))}
-              <div style={{ marginTop: 12 }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#888780', marginBottom: 4 }}>
-                  <span>Progress</span><span>{progressPct}%</span>
-                </div>
-                <div style={{ height: 6, background: '#f1efe8', borderRadius: 3, overflow: 'hidden' }}>
-                  <div style={{ height: '100%', background: '#1d9e75', borderRadius: 3, width: `${progressPct}%` }} />
-                </div>
-              </div>
-            </div>
-
-            {/* Kontent bajarilish progressi */}
-            {Object.keys(contentCounts).length > 0 && (
-              <>
-                <div className={p.sectionTitle} style={{ marginTop: 24 }}><CheckSquare size={14} />Kontent bajarilish progressi</div>
-                <div className={p.progressCard}>
-                  {([
-                    ['Nashr qilindi', 'published', '#0f6e56'],
-                    ['Tasdiqlangan', 'approved', '#185fa5'],
-                    ['Rejalashtirilgan', 'scheduled', '#534ab7'],
-                    ['Tasdiqlash kerak', 'client_approval', '#854f0b'],
-                    ['Ko\'rib chiqilmoqda', 'in_review', '#5f5e5a'],
-                    ['Rad etilgan', 'rejected', '#993c1d'],
-                  ] as [string, string, string][]).filter(([, key]) => (contentCounts[key] ?? 0) > 0).map(([label, key, color]) => (
-                    <div key={key} className={p.progressRow}>
-                      <span>{label}</span>
-                      <span style={{ fontWeight: 500, color }}>{contentCounts[key]}</span>
-                    </div>
-                  ))}
-                  <div style={{ marginTop: 12 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#888780', marginBottom: 4 }}>
-                      <span>Nashr qilingan</span>
-                      <span>{contentCounts['published'] ?? 0} / {client.monthly_post_count} ({Math.min(Math.round(((contentCounts['published'] ?? 0) / Math.max(client.monthly_post_count, 1)) * 100), 100)}%)</span>
-                    </div>
-                    <div style={{ height: 6, background: '#f1efe8', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', background: '#0f6e75', borderRadius: 3, width: `${Math.min(Math.round(((contentCounts['published'] ?? 0) / Math.max(client.monthly_post_count, 1)) * 100), 100)}%` }} />
-                    </div>
+              {client.monthly_post_count > 0 && (
+                <div style={{ marginTop: 14 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: '#888780', marginBottom: 5 }}>
+                    <span>Bajarilish darajasi</span>
+                    <span>{Math.min(Math.round((doneTasks.length / Math.max(client.monthly_post_count, 1)) * 100), 100)}%</span>
+                  </div>
+                  <div style={{ height: 7, background: '#f1efe8', borderRadius: 4, overflow: 'hidden' }}>
+                    <div style={{
+                      height: '100%', borderRadius: 4,
+                      background: 'linear-gradient(90deg, #0f6e56, #1d9e75)',
+                      width: `${Math.min(Math.round((doneTasks.length / Math.max(client.monthly_post_count, 1)) * 100), 100)}%`,
+                      transition: 'width 0.4s ease',
+                    }} />
                   </div>
                 </div>
-              </>
-            )}
+              )}
+            </div>
           </div>
         )}
 
@@ -703,8 +691,8 @@ function PortalContent() {
                                   {expandedDesc[task.id] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                                   {expandedDesc[task.id] ? 'Yopish' : 'Batafsil ko\'rish'}
                                 </button>
-                                {expandedDesc[task.id] && (
-                                  <div className={p.approvalCaption}>{task.description}</div>
+                                {expandedDesc[task.id] && task.description && (
+                                  <div className={p.approvalCaption} dangerouslySetInnerHTML={{ __html: task.description }} />
                                 )}
                               </>
                             )}
@@ -803,8 +791,8 @@ function PortalContent() {
                                   {expandedDesc[task.id] ? <ChevronUp size={13} /> : <ChevronDown size={13} />}
                                   {expandedDesc[task.id] ? 'Yopish' : 'Batafsil ko\'rish'}
                                 </button>
-                                {expandedDesc[task.id] && (
-                                  <div className={p.approvalCaption}>{task.description}</div>
+                                {expandedDesc[task.id] && task.description && (
+                                  <div className={p.approvalCaption} dangerouslySetInnerHTML={{ __html: task.description }} />
                                 )}
                               </>
                             )}

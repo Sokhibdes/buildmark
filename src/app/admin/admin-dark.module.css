@@ -24,6 +24,7 @@
   flex-shrink: 0;
   padding: 16px 0 12px;
   overflow: hidden;
+  transition: width 0.22s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 /* Expanded sidebar */
@@ -438,10 +439,23 @@
     transform: translateX(-100%);
     transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1) !important;
     box-shadow: 4px 0 32px rgba(0,0,0,0.7);
-    width: 64px !important;
+    width: 240px !important;
   }
   .sidebarOpen  { transform: translateX(0) !important; }
   .sidebarClosed { transform: translateX(-100%) !important; }
+
+  /* Open sidebar shows full expanded layout */
+  .sidebarOpen .navLabel { display: block; }
+  .sidebarOpen .navSection { display: block; }
+  .sidebarOpen .navItem {
+    width: 100%; height: 36px;
+    justify-content: flex-start;
+    padding: 0 10px; gap: 10px;
+    border-radius: 8px;
+  }
+  .sidebarOpen .sidebarHeader { justify-content: flex-start; }
+  .sidebarOpen .userInfoRow { display: flex; }
+  .sidebarOpen .sidebarBottom { align-items: flex-start; }
 
   .mobileOverlay {
     display: block;
@@ -449,7 +463,10 @@
     background: rgba(0,0,0,0.7);
     z-index: 199;
     backdrop-filter: blur(2px);
+    animation: fadeInOverlay 0.15s ease;
   }
+  @keyframes fadeInOverlay { from { opacity: 0; } to { opacity: 1; } }
+
   .mobileSidebarToggle { display: flex !important; }
   .content { padding: 20px 16px; }
   .topbar { padding: 0 16px; }

@@ -152,10 +152,16 @@
 .approvalTitle { font-size: 14px; font-weight: 600; color: #18181b; margin-bottom: 4px; letter-spacing: -0.2px; }
 .approvalMeta { font-size: 11px; color: #a1a1aa; margin-bottom: 8px; font-weight: 500; }
 .approvalCaption {
-  font-size: 12px; color: #52525b; background: #faf9f7;
-  padding: 9px 11px; border-radius: 8px; margin-bottom: 9px; line-height: 1.55;
-  border: 1px solid #f0ede6; white-space: pre-wrap; word-break: break-word;
+  font-size: 13px; color: #52525b; background: #faf9f7;
+  padding: 10px 13px; border-radius: 8px; margin-bottom: 9px; line-height: 1.65;
+  border: 1px solid #f0ede6; word-break: break-word;
 }
+.approvalCaption b, .approvalCaption strong { font-weight: 700; color: #18181b; }
+.approvalCaption i, .approvalCaption em { font-style: italic; }
+.approvalCaption u { text-decoration: underline; }
+.approvalCaption ul { list-style: disc; padding-left: 18px; margin: 4px 0; }
+.approvalCaption ol { list-style: decimal; padding-left: 18px; margin: 4px 0; }
+.approvalCaption li { margin: 2px 0; }
 .feedbackInput {
   width: 100%; padding: 8px 11px;
   border: 1.5px solid #e4e2db; border-radius: 8px;
