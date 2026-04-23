@@ -173,8 +173,8 @@ export default function TelegramLinkPage() {
           </button>
         </form>
 
-        <div style={{ textAlign: 'center', marginTop: 18, fontSize: 11, color: '#c4c2bb' }}>
-          Keyingi safar Telegram orqali avtomatik kirasiz
+        <div style={{ textAlign: 'center', marginTop: 18, fontSize: 11, color: initData ? '#0f6e56' : '#dc2626' }}>
+          {initData ? 'Telegram bilan bog\'lanadi ✓' : 'initData yo\'q — bog\'lanmaydi'}
         </div>
       </div>
     </div>

@@ -11,11 +11,11 @@ export async function validateTelegramInitData(initData: string, botToken: strin
 
   const enc = new TextEncoder()
 
-  const webAppDataKey = await crypto.subtle.importKey(
-    'raw', enc.encode('WebAppData'),
+  const botTokenKey = await crypto.subtle.importKey(
+    'raw', enc.encode(botToken),
     { name: 'HMAC', hash: 'SHA-256' }, false, ['sign']
   )
-  const secretBytes = await crypto.subtle.sign('HMAC', webAppDataKey, enc.encode(botToken))
+  const secretBytes = await crypto.subtle.sign('HMAC', botTokenKey, enc.encode('WebAppData'))
 
   const hmacKey = await crypto.subtle.importKey(
     'raw', secretBytes,
