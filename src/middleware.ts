@@ -75,5 +75,5 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-	matcher: ["/", ROUTES.LOGIN, "/admin/:path*"],
+	matcher: ["/", "/login", "/admin/:path*"],
 };
