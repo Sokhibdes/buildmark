@@ -76,6 +76,10 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           setUserName(profile.full_name)
           setUserRole(profile.role as UserRole)
           setUserAvatar(profile.avatar_url ?? null)
+          const isAdminRole = profile.role === 'owner' || profile.role === 'admin'
+          if (!isAdminRole && pathname === '/admin/dashboard') {
+            router.replace('/admin/tasks')
+          }
         }
       })
       .catch(() => { if (!cancelled) router.push('/login') })
@@ -85,10 +89,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
   const isAdmin = userRole === 'owner' || userRole === 'admin'
 
-  const NAV_ITEMS = BASE_NAV.map(section => ({
-    ...section,
-    items: section.items.filter(item => !item.adminOnly || isAdmin),
-  }))
+  const isTargetologist = userRole === 'targetologist'
+  const targetologistRoutes = ['/admin/tasks', '/admin/campaigns', '/admin/reports']
+
+  const NAV_ITEMS = BASE_NAV
+    .map(section => ({
+      ...section,
+      items: section.items.filter(item => {
+        if (isAdmin) return !item.adminOnly
+        if (isTargetologist) return targetologistRoutes.includes(item.href)
+        return item.href === '/admin/tasks'
+      }),
+    }))
+    .filter(section => section.items.length > 0)
 
   const handleLogout = async () => {
     const supabase = createClient()

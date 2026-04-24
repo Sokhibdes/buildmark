@@ -43,3 +43,36 @@ export async function getCampaignInsights(campaignId: string, token: string) {
     actions?: { action_type: string; value: string }[]
   } | null
 }
+
+export type InsightRow = {
+  date_start: string
+  date_stop: string
+  impressions?: string
+  clicks?: string
+  inline_link_clicks?: string
+  spend?: string
+  ctr?: string
+  cpc?: string
+  actions?: { action_type: string; value: string }[]
+}
+
+export async function getCampaignInsightsRange(
+  campaignId: string,
+  token: string,
+  dateFrom: string,
+  dateTo: string,
+  byDay = false,
+): Promise<InsightRow[]> {
+  const timeRange = encodeURIComponent(JSON.stringify({ since: dateFrom, until: dateTo }))
+  const increment = byDay ? '&time_increment=1' : ''
+  const url = `${BASE}/${campaignId}/insights` +
+    `?fields=impressions,clicks,inline_link_clicks,spend,actions,ctr,cpc,date_start,date_stop` +
+    `&time_range=${timeRange}` +
+    increment +
+    `&action_attribution_windows=['7d_click','1d_view']` +
+    `&access_token=${encodeURIComponent(token)}`
+  const res = await fetch(url)
+  const data = await res.json()
+  if (data.error) throw new Error(`FB insights xatosi: ${data.error.message}`)
+  return (data.data ?? []) as InsightRow[]
+}

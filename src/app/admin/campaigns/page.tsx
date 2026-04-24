@@ -79,6 +79,71 @@ export default function CampaignsPage() {
   const [syncing,    setSyncing]    = useState(false)
   const [syncResult, setSyncResult] = useState<{ updated: number; created: number } | null>(null)
 
+  const [showSendReport,   setShowSendReport]   = useState(false)
+  const [sendReportDate,   setSendReportDate]   = useState('')
+  const [sendReportClient, setSendReportClient] = useState('')
+  const [sendingReport,    setSendingReport]    = useState(false)
+  const [sendReportMsg,    setSendReportMsg]    = useState('')
+
+  const handleSendReport = async () => {
+    if (!sendReportDate) return
+    setSendingReport(true); setSendReportMsg('')
+    try {
+      const res = await fetch('/api/fb/send-report', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date: sendReportDate, client_id: sendReportClient || undefined }),
+      })
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Xatolik')
+      setSendReportMsg(
+        data.groups > 0
+          ? `✓ ${data.groups} ta guruhga yuborildi`
+          : data.message ?? 'Yuborildi'
+      )
+    } catch (err: any) {
+      setSendReportMsg(`Xatolik: ${err.message}`)
+    } finally {
+      setSendingReport(false)
+    }
+  }
+
+  type InsightCampaign = {
+    id: string; name: string; client_name: string
+    total: { impressions: number; link_clicks: number; spend: number; leads: number; ctr: number; cpl: number }
+    daily: { date: string; impressions: number; link_clicks: number; spend: number; leads: number }[]
+  }
+  const [showInsights,    setShowInsights]    = useState(false)
+  const [insightsFrom,    setInsightsFrom]    = useState('')
+  const [insightsTo,      setInsightsTo]      = useState('')
+  const [byDay,           setByDay]           = useState(false)
+  const [insightsLoading, setInsightsLoading] = useState(false)
+  const [insightsData,    setInsightsData]    = useState<InsightCampaign[] | null>(null)
+  const [insightsErr,     setInsightsErr]     = useState('')
+
+  const fmt = (d: Date) => {
+    const pad = (n: number) => String(n).padStart(2, '0')
+    return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`
+  }
+  const setPreset = (preset: string) => {
+    const now = new Date()
+    if (preset === '7d')   { const f = new Date(now); f.setDate(f.getDate()-7);  setInsightsFrom(fmt(f)); setInsightsTo(fmt(now)) }
+    if (preset === '30d')  { const f = new Date(now); f.setDate(f.getDate()-30); setInsightsFrom(fmt(f)); setInsightsTo(fmt(now)) }
+    if (preset === 'month'){ setInsightsFrom(fmt(new Date(now.getFullYear(), now.getMonth(), 1))); setInsightsTo(fmt(now)) }
+    if (preset === 'prev') { setInsightsFrom(fmt(new Date(now.getFullYear(), now.getMonth()-1, 1))); setInsightsTo(fmt(new Date(now.getFullYear(), now.getMonth(), 0))) }
+  }
+  const fetchInsights = async () => {
+    if (!insightsFrom || !insightsTo) { setInsightsErr('Sana oralig\'ini tanlang'); return }
+    setInsightsLoading(true); setInsightsErr(''); setInsightsData(null)
+    try {
+      const res = await fetch(`/api/fb/insights?from=${insightsFrom}&to=${insightsTo}&by_day=${byDay}`)
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Xatolik')
+      setInsightsData(data.campaigns)
+    } catch (err: any) { setInsightsErr(err.message) }
+    finally { setInsightsLoading(false) }
+  }
+
   type FbNew = {
     fb_id: string; name: string; status: string; objective?: string
     client_id: string; client_name: string
@@ -237,6 +302,27 @@ export default function CampaignsPage() {
     } finally { setImporting(false) }
   }
 
+  /* daily report */
+  const [reportModal, setReportModal] = useState<Campaign | null>(null)
+  const [reportChatId, setReportChatId] = useState('')
+
+  const openReportModal = (camp: Campaign) => {
+    setReportModal(camp)
+    setReportChatId(camp.telegram_chat_id ?? '')
+  }
+
+  const handleSaveReport = async (enabled: boolean) => {
+    if (!reportModal) return
+    try {
+      const updated = await updateCampaign(reportModal.id, {
+        daily_report: enabled,
+        telegram_chat_id: enabled ? reportChatId.trim() || null : null,
+      } as any)
+      setCampaigns(prev => prev.map(c => c.id === updated.id ? updated : c))
+      setReportModal(null)
+    } catch (err: any) { alert(err?.message ?? 'Xatolik') }
+  }
+
   /* delete */
   const handleDelete = async () => {
     if (!confirmDel) return
@@ -287,6 +373,21 @@ export default function CampaignsPage() {
           )}
           <button
             className={s.btn}
+            onClick={() => { setShowSendReport(true); setSendReportDate(''); setSendReportClient(''); setSendReportMsg('') }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6 }}
+          >
+            📤 Hisobot yuborish
+          </button>
+          <button
+            className={s.btn}
+            onClick={() => { setShowInsights(v => !v); setInsightsData(null); setInsightsErr('') }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6,
+              ...(showInsights ? { background: isDark ? '#1E1533' : '#e6f1fb', color: isDark ? '#A78BFA' : '#185fa5', borderColor: '#185fa5' } : {}) }}
+          >
+            <BarChart2 size={13} /> Davriy tahlil
+          </button>
+          <button
+            className={s.btn}
             onClick={handleFbSync}
             disabled={syncing}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
@@ -329,6 +430,143 @@ export default function CampaignsPage() {
           </div>
         ))}
       </div>
+
+      {/* Davriy tahlil paneli */}
+      {showInsights && (
+        <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 12, padding: '18px 20px', marginBottom: 20 }}>
+          <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 14 }}>Facebook Davriy Tahlil</div>
+
+          {/* Presets + date pickers */}
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
+            {[
+              { key: '7d',    label: '7 kun'       },
+              { key: '30d',   label: '30 kun'      },
+              { key: 'month', label: 'Bu oy'       },
+              { key: 'prev',  label: "O'tgan oy"   },
+            ].map(p => (
+              <button key={p.key} onClick={() => setPreset(p.key)} style={{
+                padding: '5px 12px', borderRadius: 7, fontSize: 12, fontWeight: 600,
+                border: `1px solid ${C.border}`, background: C.statBg, color: C.text,
+                cursor: 'pointer', fontFamily: 'inherit',
+              }}>{p.label}</button>
+            ))}
+            <div style={{ display: 'flex', gap: 6, alignItems: 'center', marginLeft: 4 }}>
+              <input type="date" value={insightsFrom} onChange={e => setInsightsFrom(e.target.value)}
+                style={{ ...inputStyle, width: 'auto', padding: '5px 10px', fontSize: 12 }} />
+              <span style={{ color: C.sub, fontSize: 12 }}>—</span>
+              <input type="date" value={insightsTo} onChange={e => setInsightsTo(e.target.value)}
+                style={{ ...inputStyle, width: 'auto', padding: '5px 10px', fontSize: 12 }} />
+            </div>
+            <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: C.sub, cursor: 'pointer' }}>
+              <input type="checkbox" checked={byDay} onChange={e => setByDay(e.target.checked)} style={{ accentColor: '#185fa5' }} />
+              Kunlik taqsimot
+            </label>
+            <button
+              onClick={fetchInsights}
+              disabled={insightsLoading}
+              className={`${s.btn} ${s.btnPrimary}`}
+              style={{ padding: '6px 16px', fontSize: 12 }}
+            >
+              {insightsLoading ? 'Yuklanmoqda...' : 'Tahlil qilish'}
+            </button>
+          </div>
+
+          {insightsErr && (
+            <div style={{ color: '#dc2626', background: '#fee2e2', border: '1px solid #fecaca', borderRadius: 7, padding: '8px 12px', fontSize: 12, marginBottom: 12 }}>
+              {insightsErr}
+            </div>
+          )}
+
+          {/* Natijalar */}
+          {insightsData && (
+            insightsData.length === 0 ? (
+              <div style={{ fontSize: 13, color: C.sub, textAlign: 'center', padding: '16px 0' }}>
+                Bu davr uchun Facebook kampaniya ma'lumotlari topilmadi
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {/* Jami yig'indi */}
+                {(() => {
+                  const total = insightsData.reduce((a, c) => ({
+                    impressions: a.impressions + c.total.impressions,
+                    link_clicks: a.link_clicks + c.total.link_clicks,
+                    spend:       +(a.spend     + c.total.spend).toFixed(2),
+                    leads:       a.leads       + c.total.leads,
+                  }), { impressions: 0, link_clicks: 0, spend: 0, leads: 0 })
+                  return (
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))', gap: 8, padding: '12px 14px', background: isDark ? '#141414' : '#f4f3f0', borderRadius: 10 }}>
+                      {[
+                        { label: "Ko'rishlar",    value: fmtNum(total.impressions), color: '#534ab7' },
+                        { label: 'Link Clicks',   value: fmtNum(total.link_clicks), color: '#185fa5' },
+                        { label: 'Lead forma',    value: fmtNum(total.leads),       color: '#0f6e56' },
+                        { label: 'Sarflandi ($)', value: `$${total.spend}`,         color: '#854f0b' },
+                      ].map(({ label, value, color }) => (
+                        <div key={label} style={{ textAlign: 'center' }}>
+                          <div style={{ fontSize: 18, fontWeight: 700, color }}>{value}</div>
+                          <div style={{ fontSize: 10, color: C.sub, marginTop: 2 }}>{label}</div>
+                        </div>
+                      ))}
+                      <div style={{ textAlign: 'center', gridColumn: '1/-1', marginTop: 4, fontSize: 11, color: C.sub }}>
+                        Jami {insightsData.length} ta FB kampaniya · {insightsFrom} — {insightsTo}
+                      </div>
+                    </div>
+                  )
+                })()}
+
+                {/* Har bir kampaniya */}
+                {insightsData.map(camp => (
+                  <div key={camp.id} style={{ border: `1px solid ${C.border}`, borderRadius: 10, padding: '12px 14px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10, flexWrap: 'wrap', gap: 6 }}>
+                      <div>
+                        <div style={{ fontSize: 13, fontWeight: 600, color: C.text }}>{camp.name}</div>
+                        <div style={{ fontSize: 11, color: C.sub }}>{camp.client_name}</div>
+                      </div>
+                      <div style={{ display: 'flex', gap: 12, fontSize: 12, flexWrap: 'wrap' }}>
+                        {[
+                          { label: "Ko'rishlar",  value: fmtNum(camp.total.impressions), color: '#534ab7' },
+                          { label: 'Lead forma',  value: fmtNum(camp.total.leads),       color: '#0f6e56' },
+                          { label: 'Sarflandi',   value: `$${camp.total.spend}`,         color: '#993c1d' },
+                          { label: 'CPL',         value: camp.total.cpl > 0 ? `$${camp.total.cpl}` : '—', color: '#185fa5' },
+                        ].map(({ label, value, color }) => (
+                          <div key={label} style={{ textAlign: 'center' }}>
+                            <div style={{ fontWeight: 700, color }}>{value}</div>
+                            <div style={{ fontSize: 10, color: C.sub }}>{label}</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {/* Kunlik taqsimot */}
+                    {byDay && camp.daily.length > 0 && (() => {
+                      const maxImp = Math.max(...camp.daily.map(d => d.impressions), 1)
+                      return (
+                        <div style={{ overflowX: 'auto' }}>
+                          <div style={{ display: 'flex', gap: 4, alignItems: 'flex-end', minWidth: camp.daily.length * 28, height: 60, padding: '0 2px' }}>
+                            {camp.daily.map(d => (
+                              <div key={d.date} title={`${d.date}: ${fmtNum(d.impressions)} ko'rish, ${fmtNum(d.leads)} lead, $${d.spend.toFixed(2)}`}
+                                style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 2, cursor: 'default' }}>
+                                <div style={{
+                                  width: '100%', minWidth: 14,
+                                  height: `${Math.max(4, (d.impressions / maxImp) * 44)}px`,
+                                  background: isDark ? '#A78BFA' : '#185fa5',
+                                  borderRadius: '3px 3px 0 0', opacity: 0.75,
+                                }} />
+                                <div style={{ fontSize: 7, color: C.sub, writingMode: 'vertical-rl', transform: 'rotate(180deg)', lineHeight: 1 }}>
+                                  {d.date.slice(5)}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )
+                    })()}
+                  </div>
+                ))}
+              </div>
+            )
+          )}
+        </div>
+      )}
 
       {/* Filters */}
       <div style={{
@@ -423,7 +661,23 @@ export default function CampaignsPage() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0 }}>
+                  <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+                    {camp.facebook_campaign_id && (
+                      <button
+                        onClick={() => openReportModal(camp)}
+                        title={camp.daily_report ? `Guruh: ${camp.telegram_chat_id}` : 'Kunlik hisobotga qo\'shish'}
+                        style={{
+                          padding: '5px 10px', fontSize: 11, fontWeight: 600,
+                          borderRadius: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                          border: `1px solid ${camp.daily_report ? '#0f6e56' : C.border}`,
+                          background: camp.daily_report ? (isDark ? '#0f6e5620' : '#d1fae5') : 'none',
+                          color: camp.daily_report ? '#0f6e56' : C.sub,
+                          fontFamily: 'inherit',
+                        }}
+                      >
+                        📊 {camp.daily_report ? 'Hisobotda' : 'Hisobot'}
+                      </button>
+                    )}
                     <button className={s.btn} style={{ padding: '5px 10px', fontSize: 12 }} onClick={() => openEdit(camp)}>
                       <Edit2 size={12} /> Statistika
                     </button>
@@ -757,6 +1011,126 @@ export default function CampaignsPage() {
           </div>
         )
       })()}
+
+      {/* ── Hisobot yuborish modal ── */}
+      {showSendReport && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onClick={() => setShowSendReport(false)}>
+          <div style={{ background: C.card, borderRadius: 14, padding: '24px 28px', maxWidth: 360, width: '100%' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: C.text, marginBottom: 4 }}>📤 Hisobot yuborish</div>
+            <div style={{ fontSize: 12, color: C.sub, marginBottom: 18 }}>
+              Tanlangan sana statistikasini belgilangan guruhlarga yuboradi
+            </div>
+
+            <div style={{ marginBottom: 12 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: C.text, display: 'block', marginBottom: 6 }}>Sana</label>
+              <input
+                type="date"
+                style={inputStyle}
+                value={sendReportDate}
+                max={new Date().toISOString().slice(0, 10)}
+                onChange={e => { setSendReportDate(e.target.value); setSendReportMsg('') }}
+                autoFocus
+              />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: C.text, display: 'block', marginBottom: 6 }}>Mijoz</label>
+              <select
+                style={selectStyle}
+                value={sendReportClient}
+                onChange={e => { setSendReportClient(e.target.value); setSendReportMsg('') }}
+              >
+                <option value="">— Barcha mijozlar</option>
+                {clients
+                  .filter(c => campaigns.some(camp => camp.client_id === c.id && camp.daily_report && camp.facebook_campaign_id))
+                  .map(c => <option key={c.id} value={c.id}>{c.company_name}</option>)
+                }
+              </select>
+            </div>
+
+            {sendReportMsg && (
+              <div style={{
+                fontSize: 12, borderRadius: 7, padding: '8px 12px', marginBottom: 14,
+                background: sendReportMsg.startsWith('✓') ? (isDark ? '#0f6e5620' : '#d1fae5') : '#fee2e2',
+                color: sendReportMsg.startsWith('✓') ? '#0f6e56' : '#dc2626',
+                border: `1px solid ${sendReportMsg.startsWith('✓') ? '#6ee7b7' : '#fecaca'}`,
+              }}>
+                {sendReportMsg}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className={s.btn} style={{ flex: 1 }} onClick={() => setShowSendReport(false)}>
+                Yopish
+              </button>
+              <button
+                className={`${s.btn} ${s.btnPrimary}`}
+                style={{ flex: 1 }}
+                disabled={!sendReportDate || sendingReport}
+                onClick={handleSendReport}
+              >
+                {sendingReport ? 'Yuborilmoqda...' : 'Yuborish'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── Hisobot sozlamalari modal ── */}
+      {reportModal && (
+        <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 16 }}
+          onClick={() => setReportModal(null)}>
+          <div style={{ background: C.card, borderRadius: 14, padding: '24px 28px', maxWidth: 400, width: '100%' }}
+            onClick={e => e.stopPropagation()}>
+            <div style={{ fontSize: 15, fontWeight: 600, color: C.text, marginBottom: 4 }}>📊 Kunlik hisobot</div>
+            <div style={{ fontSize: 12, color: C.sub, marginBottom: 18 }}>{reportModal.name}</div>
+
+            <div style={{ marginBottom: 16 }}>
+              <label style={{ fontSize: 12, fontWeight: 600, color: C.text, display: 'block', marginBottom: 6 }}>
+                Telegram guruh Chat ID
+              </label>
+              <input
+                style={inputStyle}
+                placeholder="-100xxxxxxxxxx"
+                value={reportChatId}
+                onChange={e => setReportChatId(e.target.value)}
+                autoFocus
+              />
+              <div style={{ fontSize: 11, color: C.sub, marginTop: 5 }}>
+                Botni guruhga qo'shing → brauzerda{' '}
+                <code style={{ background: C.barBg, padding: '1px 4px', borderRadius: 3 }}>
+                  /bot{'<TOKEN>'}/getUpdates
+                </code>{' '}
+                → <code style={{ background: C.barBg, padding: '1px 4px', borderRadius: 3 }}>"chat":&#123;"id":-100...&#125;</code>
+              </div>
+            </div>
+
+            <div style={{ display: 'flex', gap: 8 }}>
+              <button className={s.btn} style={{ flex: 1 }} onClick={() => setReportModal(null)}>
+                Bekor qilish
+              </button>
+              {reportModal.daily_report && (
+                <button
+                  className={s.btn}
+                  style={{ color: '#dc2626', borderColor: '#fecaca' }}
+                  onClick={() => handleSaveReport(false)}
+                >
+                  O'chirish
+                </button>
+              )}
+              <button
+                className={`${s.btn} ${s.btnPrimary}`}
+                style={{ flex: 1 }}
+                disabled={!reportChatId.trim()}
+                onClick={() => handleSaveReport(true)}
+              >
+                Saqlash
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* ── O'chirish tasdiqlash ── */}
       {confirmDel && (

@@ -321,6 +321,7 @@ export default function TasksPage() {
   const [commentErr, setCommentErr] = useState('')
   const [currentUserName, setCurrentUserName] = useState('Xodim')
   const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [myTasksOnly, setMyTasksOnly] = useState(true)
 
   useEffect(() => {
     Promise.all([getWorkflowStages(), getTasks(), getClients(), getTeamMembers(), getCurrentUser()])
@@ -374,7 +375,10 @@ export default function TasksPage() {
     return () => { supabase.removeChannel(channel) }
   }, [])
 
-  const byStage = (id: string) => tasks.filter(t => t.stage_id === id)
+  const byStage = (id: string) => tasks.filter(t =>
+    t.stage_id === id &&
+    (!myTasksOnly || !currentUserId || (t.assigned_to ?? []).includes(currentUserId))
+  )
 
   const handleDrop = async (e: React.DragEvent, stageId: string) => {
     e.preventDefault()
@@ -589,9 +593,31 @@ export default function TasksPage() {
           <div className={s.pageTitle}>Vazifalar — Kanban</div>
           <div className={s.pageSubtitle}>{tasks.length} ta vazifa · {stages.length} ta bosqich</div>
         </div>
-        <button className={`${s.btn} ${s.btnPrimary}`} onClick={openNew}>
-          <Plus size={14} /> Yangi vazifa
-        </button>
+        <div style={{ display: 'flex', gap: 8 }}>
+          <button
+            onClick={() => setMyTasksOnly(v => !v)}
+            style={{
+              display: 'flex', alignItems: 'center', gap: 6,
+              padding: '7px 14px', borderRadius: 8, fontSize: 13, fontWeight: 600,
+              border: myTasksOnly
+                ? '1.5px solid #185fa5'
+                : `1.5px solid ${theme === 'dark' ? '#3A3A3C' : '#e4e2db'}`,
+              background: myTasksOnly
+                ? theme === 'dark' ? '#1E1533' : '#e6f1fb'
+                : theme === 'dark' ? '#1C1C1E' : '#fff',
+              color: myTasksOnly
+                ? theme === 'dark' ? '#A78BFA' : '#185fa5'
+                : theme === 'dark' ? '#8A8A8E' : '#71717a',
+              cursor: 'pointer', fontFamily: 'inherit', transition: 'all 0.15s',
+            }}
+          >
+            <User size={13} />
+            {myTasksOnly ? 'Mening vazifalarim' : 'Barcha vazifalar'}
+          </button>
+          <button className={`${s.btn} ${s.btnPrimary}`} onClick={openNew}>
+            <Plus size={14} /> Yangi vazifa
+          </button>
+        </div>
       </div>
 
       {/* Workflow banner */}

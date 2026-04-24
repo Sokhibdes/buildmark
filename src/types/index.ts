@@ -140,6 +140,8 @@ export interface Campaign {
   cpc?: number
   notes?: string
   facebook_campaign_id?: string
+  daily_report?: boolean
+  telegram_chat_id?: string
   created_by?: string
   created_at: string
   client?: Client
