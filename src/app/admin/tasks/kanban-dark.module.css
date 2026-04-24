@@ -351,7 +351,8 @@
 
 /* ═══════════════ MOBILE ═══════════════ */
 @media (max-width: 768px) {
-  .column { width: 175px; }
+  .board { gap: 8px; padding-bottom: 16px; padding-right: 16px; }
+  .column { width: 260px; max-height: calc(100vh - 260px); }
   .taskCard { padding: 10px 11px; }
   .taskTitle { font-size: 12px; }
 

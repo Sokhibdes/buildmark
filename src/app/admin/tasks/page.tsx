@@ -593,7 +593,7 @@ export default function TasksPage() {
           <div className={s.pageTitle}>Vazifalar — Kanban</div>
           <div className={s.pageSubtitle}>{tasks.length} ta vazifa · {stages.length} ta bosqich</div>
         </div>
-        <div style={{ display: 'flex', gap: 8 }}>
+        <div className={s.pageActions}>
           <button
             onClick={() => setMyTasksOnly(v => !v)}
             style={{
@@ -612,7 +612,7 @@ export default function TasksPage() {
             }}
           >
             <User size={13} />
-            {myTasksOnly ? 'Mening vazifalarim' : 'Barcha vazifalar'}
+            {myTasksOnly ? 'Mening' : 'Barchasi'}
           </button>
           <button className={`${s.btn} ${s.btnPrimary}`} onClick={openNew}>
             <Plus size={14} /> Yangi vazifa

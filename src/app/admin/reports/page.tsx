@@ -157,17 +157,18 @@ export default function ReportsPage() {
         {filteredReports.length === 0 ? (
           <div className={s.empty}>Hisobotlar yo'q</div>
         ) : (
-          <table className={s.table}>
+          <div className={s.tableWrapper}>
+          <table className={s.table} style={{ minWidth: 780 }}>
             <thead>
               <tr>
                 <th>Mijoz</th>
                 <th>Oy</th>
-                <th>Nashr qilindi</th>
-                <th>Tasdiqlangan</th>
-                <th>Rejalashtirilgan</th>
-                <th>Kutmoqda</th>
-                <th>Qamrov</th>
-                <th>Obunachi o'sishi</th>
+                <th>Nashr</th>
+                <th className={s.colHideOnMobile}>Tasdiqlangan</th>
+                <th className={s.colHideOnMobile}>Rejalashtirilgan</th>
+                <th className={s.colHideOnMobile}>Kutmoqda</th>
+                <th className={s.colHideOnMobile}>Qamrov</th>
+                <th className={s.colHideOnMobile}>Obunachi</th>
                 <th>Leadlar</th>
                 <th>Xarajat</th>
                 <th>Holat</th>
@@ -180,16 +181,16 @@ export default function ReportsPage() {
                 return (
                   <tr key={report.id}>
                     <td style={{ fontWeight: 500 }}>{client?.company_name ?? '—'}</td>
-                    <td>{new Date(report.month).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'long' })}</td>
+                    <td style={{ whiteSpace: 'nowrap' }}>{new Date(report.month).toLocaleDateString('uz-UZ', { year: 'numeric', month: 'short' })}</td>
                     <td>
                       <span style={{ fontWeight: 600, color: '#0f6e56' }}>{cs.published}</span>
                       <span style={{ color: '#b4b2a9', fontSize: 11 }}> / {report.posts_planned}</span>
                     </td>
-                    <td><span style={{ fontWeight: 500, color: '#185fa5' }}>{cs.approved}</span></td>
-                    <td><span style={{ fontWeight: 500, color: '#534ab7' }}>{cs.scheduled}</span></td>
-                    <td><span style={{ fontWeight: 500, color: '#854f0b' }}>{cs.pending}</span></td>
-                    <td>{report.total_reach.toLocaleString()}</td>
-                    <td style={{ color: report.follower_growth >= 0 ? '#0f6e56' : '#993c1d', fontWeight: 500 }}>
+                    <td className={s.colHideOnMobile}><span style={{ fontWeight: 500, color: '#185fa5' }}>{cs.approved}</span></td>
+                    <td className={s.colHideOnMobile}><span style={{ fontWeight: 500, color: '#534ab7' }}>{cs.scheduled}</span></td>
+                    <td className={s.colHideOnMobile}><span style={{ fontWeight: 500, color: '#854f0b' }}>{cs.pending}</span></td>
+                    <td className={s.colHideOnMobile}>{report.total_reach.toLocaleString()}</td>
+                    <td className={s.colHideOnMobile} style={{ color: report.follower_growth >= 0 ? '#0f6e56' : '#993c1d', fontWeight: 500 }}>
                       {report.follower_growth >= 0 ? '+' : ''}{report.follower_growth}
                     </td>
                     <td>{report.leads_count}</td>
@@ -197,13 +198,14 @@ export default function ReportsPage() {
                     <td>
                       {report.is_sent_to_client
                         ? <span className={`${s.badge} ${s.badgeTeal}`}>Yuborilgan</span>
-                        : <span className={`${s.badge} ${s.badgeGray}`}>Yuborilmagan</span>}
+                        : <span className={`${s.badge} ${s.badgeGray}`}>Yo'q</span>}
                     </td>
                   </tr>
                 )
               })}
             </tbody>
           </table>
+          </div>
         )}
       </div>
     </div>

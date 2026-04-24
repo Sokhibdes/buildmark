@@ -365,7 +365,7 @@ export default function CampaignsPage() {
           <div className={s.pageTitle}>Kampaniyalar</div>
           <div className={s.pageSubtitle}>{campaigns.length} ta kampaniya · {activeCount} ta aktiv</div>
         </div>
-        <div style={{ display: 'flex', gap: 8, alignItems: 'center', flexWrap: 'wrap' }}>
+        <div className={s.pageActions}>
           {syncResult && (
             <span style={{ fontSize: 12, color: C.sub }}>
               ✓ {syncResult.updated} ta yangilandi{syncResult.created > 0 ? `, ${syncResult.created} ta import qilindi` : ''}
@@ -437,7 +437,7 @@ export default function CampaignsPage() {
           <div style={{ fontSize: 14, fontWeight: 600, color: C.text, marginBottom: 14 }}>Facebook Davriy Tahlil</div>
 
           {/* Presets + date pickers */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', alignItems: 'center', marginBottom: 14, rowGap: 8 }}>
             {[
               { key: '7d',    label: '7 kun'       },
               { key: '30d',   label: '30 kun'      },
@@ -618,7 +618,7 @@ export default function CampaignsPage() {
                 transition: 'box-shadow 0.2s',
               }}>
                 {/* Top row */}
-                <div style={{ display: 'flex', alignItems: 'flex-start', gap: 14, marginBottom: 14 }}>
+                <div className={s.cardTopRow}>
                   {/* Platform icon */}
                   <div style={{
                     width: 40, height: 40, borderRadius: 10, flexShrink: 0,
@@ -661,7 +661,7 @@ export default function CampaignsPage() {
                     </div>
                   </div>
 
-                  <div style={{ display: 'flex', gap: 6, flexShrink: 0, alignItems: 'center' }}>
+                  <div className={s.cardActions}>
                     {camp.facebook_campaign_id && (
                       <button
                         onClick={() => openReportModal(camp)}

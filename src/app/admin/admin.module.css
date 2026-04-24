@@ -469,13 +469,52 @@
   color: #a1a1aa; font-size: 14px;
 }
 
+/* Table scrollable wrapper */
+.tableWrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.tableWrapper .table { min-width: 480px; }
+
+/* Page header action buttons row */
+.pageActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+/* Campaign / content card top row */
+.cardTopRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.cardActions {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  flex-shrink: 0;
+}
+
 /* Mobile elements — hidden on desktop */
 .mobileOverlay { display: none; }
 .mobileSidebarToggle { display: none !important; }
+.colHideOnMobile { /* visible on desktop */ }
 
 /* ═══════════════════════════════════════
    RESPONSIVE
 ═══════════════════════════════════════ */
+@media (max-width: 480px) {
+  .statsGrid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
+  .statValue  { font-size: 20px; }
+  .content    { padding: 10px 10px; }
+  .pageTitle  { font-size: 16px; }
+  .cardActions { flex-wrap: wrap; justify-content: flex-end; }
+  .cardTopRow  { flex-wrap: wrap; }
+}
+
 @media (max-width: 768px) {
   /* Sidebar becomes a fixed overlay drawer */
   .sidebar {
@@ -518,12 +557,15 @@
   .mobileSidebarToggle { display: flex !important; }
 
   /* Content adjustments */
-  .content { padding: 14px 12px; }
-  .topbar { padding: 0 14px; }
+  .content { padding: 12px 10px; }
+  .topbar { padding: 0 12px; }
   .grid2, .grid3 { grid-template-columns: 1fr; }
   .pageHeader { flex-direction: column; align-items: flex-start; gap: 10px; }
-  .statsGrid { grid-template-columns: repeat(2, 1fr); }
+  .pageActions { width: 100%; }
+  .statsGrid { grid-template-columns: repeat(2, 1fr); gap: 10px; }
   .pageTitle { font-size: 17px; }
   .table { font-size: 12px; }
-  .table th, .table td { padding: 10px 10px; }
+  .table th, .table td { padding: 9px 10px; }
+  .colHideOnMobile { display: none !important; }
+  .cardActions { flex-wrap: wrap; justify-content: flex-end; }
 }

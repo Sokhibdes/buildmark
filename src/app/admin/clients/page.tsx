@@ -102,116 +102,111 @@ export default function ClientsPage() {
         ) : filtered.length === 0 ? (
           <div className={s.empty}>Mijozlar topilmadi</div>
         ) : (
-          <table className={s.table}>
-            <thead>
-              <tr>
-                <th>Kompaniya</th>
-                <th>Kontakt</th>
-                <th>Paket</th>
-                <th>Ijtimoiy tarmoqlar</th>
-                <th>Portal</th>
-                <th>Holat</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map(client => {
-                const status = STATUS_MAP[client.status]
-                return (
-                  <tr key={client.id}>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                        <div style={{
-                          width: 32, height: 32, borderRadius: 8,
-                          background: '#e6f1fb', color: '#185fa5',
-                          display: 'flex', alignItems: 'center', justifyContent: 'center',
-                          fontSize: 11, fontWeight: 600, flexShrink: 0,
-                          overflow: 'hidden',
-                        }}>
-                          {client.logo_url
-                            ? <img src={client.logo_url} alt={client.company_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            : client.company_name.slice(0, 2).toUpperCase()}
+          <div className={s.tableWrapper}>
+            <table className={s.table}>
+              <thead>
+                <tr>
+                  <th>Kompaniya</th>
+                  <th className={s.colHideOnMobile}>Kontakt</th>
+                  <th className={s.colHideOnMobile}>Paket</th>
+                  <th className={s.colHideOnMobile}>Ijtimoiy</th>
+                  <th className={s.colHideOnMobile}>Portal</th>
+                  <th>Holat</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map(client => {
+                  const status = STATUS_MAP[client.status]
+                  return (
+                    <tr key={client.id}>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                          <div style={{
+                            width: 32, height: 32, borderRadius: 8,
+                            background: '#e6f1fb', color: '#185fa5',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            fontSize: 11, fontWeight: 600, flexShrink: 0,
+                            overflow: 'hidden',
+                          }}>
+                            {client.logo_url
+                              ? <img src={client.logo_url} alt={client.company_name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : client.company_name.slice(0, 2).toUpperCase()}
+                          </div>
+                          <div>
+                            <div style={{ fontWeight: 500 }}>{client.company_name}</div>
+                            <div style={{ fontSize: 11, color: '#888780' }}>{client.industry}</div>
+                          </div>
                         </div>
-                        <div>
-                          <div style={{ fontWeight: 500 }}>{client.company_name}</div>
-                          <div style={{ fontSize: 11, color: '#888780' }}>{client.industry}</div>
+                      </td>
+                      <td className={s.colHideOnMobile}>
+                        <div>{client.contact_name}</div>
+                        {client.phone && <div style={{ fontSize: 11, color: '#888780' }}>{client.phone}</div>}
+                      </td>
+                      <td className={s.colHideOnMobile}>
+                        <span className={`${s.badge} ${s.badgeBlue}`}>{client.package}</span>
+                      </td>
+                      <td className={s.colHideOnMobile}>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          {client.instagram_url && (
+                            <a href={client.instagram_url} target="_blank" rel="noreferrer">
+                              <Instagram size={14} color="#888780" />
+                            </a>
+                          )}
+                          {client.telegram_url && (
+                            <a href={client.telegram_url} target="_blank" rel="noreferrer">
+                              <Send size={14} color="#888780" />
+                            </a>
+                          )}
                         </div>
-                      </div>
-                    </td>
-                    <td>
-                      <div>{client.contact_name}</div>
-                      {client.phone && <div style={{ fontSize: 11, color: '#888780' }}>{client.phone}</div>}
-                    </td>
-                    <td>
-                      <span className={`${s.badge} ${s.badgeBlue}`}>
-                        {client.package}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', gap: 6 }}>
-                        {client.instagram_url && (
-                          <a href={client.instagram_url} target="_blank" rel="noreferrer">
-                            <Instagram size={14} color="#888780" />
-                          </a>
-                        )}
-                        {client.telegram_url && (
-                          <a href={client.telegram_url} target="_blank" rel="noreferrer">
-                            <Send size={14} color="#888780" />
-                          </a>
-                        )}
-                      </div>
-                    </td>
-                    <td>
-                      {client.portal_access ? (
-                        <span className={`${s.badge} ${s.badgeTeal}`}>Faol</span>
-                      ) : (
-                        <span className={`${s.badge} ${s.badgeGray}`}>Yo'q</span>
-                      )}
-                    </td>
-                    <td>
-                      <span className={`${s.badge} ${s[status.cls as keyof typeof s] || s.badgeGray}`}>
-                        {status.label}
-                      </span>
-                    </td>
-                    <td>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <Link href={`/admin/clients/${client.id}`} className={`${s.btn} ${s.btnSm}`}>
-                          Ko'rish
-                        </Link>
-                        {confirmDeleteId === client.id ? (
-                          <>
+                      </td>
+                      <td className={s.colHideOnMobile}>
+                        {client.portal_access
+                          ? <span className={`${s.badge} ${s.badgeTeal}`}>Faol</span>
+                          : <span className={`${s.badge} ${s.badgeGray}`}>Yo'q</span>}
+                      </td>
+                      <td>
+                        <span className={`${s.badge} ${s[status.cls as keyof typeof s] || s.badgeGray}`}>
+                          {status.label}
+                        </span>
+                      </td>
+                      <td>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                          <Link href={`/admin/clients/${client.id}`} className={`${s.btn} ${s.btnSm}`}>
+                            Ko'rish
+                          </Link>
+                          {confirmDeleteId === client.id ? (
+                            <>
+                              <button
+                                className={`${s.btn} ${s.btnSm}`}
+                                style={{ background: '#ef4444', color: '#fff', border: 'none' }}
+                                onClick={() => handleDelete(client)}
+                                disabled={deletingId === client.id}
+                              >
+                                {deletingId === client.id ? '...' : 'Ha'}
+                              </button>
+                              <button className={`${s.btn} ${s.btnSm}`} onClick={() => setConfirmDeleteId(null)}>
+                                Yo'q
+                              </button>
+                            </>
+                          ) : (
                             <button
                               className={`${s.btn} ${s.btnSm}`}
-                              style={{ background: '#ef4444', color: '#fff', border: 'none' }}
-                              onClick={() => handleDelete(client)}
-                              disabled={deletingId === client.id}
+                              style={{ color: '#ef4444', padding: '4px 8px' }}
+                              onClick={() => setConfirmDeleteId(client.id)}
+                              title="O'chirish"
                             >
-                              {deletingId === client.id ? '...' : 'Ha'}
+                              <Trash2 size={13} />
                             </button>
-                            <button
-                              className={`${s.btn} ${s.btnSm}`}
-                              onClick={() => setConfirmDeleteId(null)}
-                            >
-                              Yo'q
-                            </button>
-                          </>
-                        ) : (
-                          <button
-                            className={`${s.btn} ${s.btnSm}`}
-                            style={{ color: '#ef4444', padding: '4px 8px' }}
-                            onClick={() => setConfirmDeleteId(client.id)}
-                            title="O'chirish"
-                          >
-                            <Trash2 size={13} />
-                          </button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                          )}
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
         )}
       </div>
     </div>
