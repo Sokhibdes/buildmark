@@ -79,7 +79,8 @@ export async function GET(req: NextRequest) {
             leads:       parseLeads(r.actions),
           })) : [],
         }
-      } catch {
+      } catch (err: any) {
+        console.error(`insights [${camp.facebook_campaign_id}]:`, err?.message)
         return null
       }
     })

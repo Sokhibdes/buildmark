@@ -31,6 +31,28 @@ const UZ_MONTHS = ['Yan','Fev','Mar','Apr','May','Iyn','Iyl','Avg','Sen','Okt','
 const fmtDate = (s?: string) => { if (!s) return '—'; const [,m,d] = s.split('-').map(Number); return `${d} ${UZ_MONTHS[m-1]}` }
 const fmtNum  = (n: number)  => n >= 1_000_000 ? `${(n/1_000_000).toFixed(1)}M` : n >= 1_000 ? `${(n/1_000).toFixed(1)}K` : String(n)
 
+const OBJECTIVE_LABELS: Record<string, string> = {
+  OUTCOME_LEADS:          'Leads',
+  OUTCOME_AWARENESS:      'Awareness',
+  OUTCOME_TRAFFIC:        'Traffic',
+  OUTCOME_ENGAGEMENT:     'Engagement',
+  OUTCOME_SALES:          'Sales',
+  OUTCOME_APP_PROMOTION:  'App',
+  LEAD_GENERATION:        'Lead gen',
+  LINK_CLICKS:            'Clicks',
+  CONVERSIONS:            'Conversions',
+  BRAND_AWARENESS:        'Awareness',
+  REACH:                  'Reach',
+  PAGE_LIKES:             'Likes',
+  POST_ENGAGEMENT:        'Engagement',
+  VIDEO_VIEWS:            'Video',
+  MESSAGES:               'Messages',
+}
+const fmtObjective = (o?: string) => {
+  if (!o) return null
+  return OBJECTIVE_LABELS[o.toUpperCase()] ?? o
+}
+
 type FormData = {
   client_id: string; name: string; platform: string; objective: string
   budget_total: string; start_date: string; end_date: string; notes: string; status: string
@@ -45,6 +67,7 @@ const EMPTY_FORM: FormData = {
 type StatsForm = {
   impressions: string; clicks: string; conversions: string
   budget_spent: string; ctr: string; cpc: string; status: string
+  daily_budget: string
 }
 
 /* ── component ───────────────────────────────── */
@@ -69,15 +92,30 @@ export default function CampaignsPage() {
 
   /* stats edit modal */
   const [editTarget, setEditTarget] = useState<Campaign | null>(null)
-  const [statsForm,  setStatsForm]  = useState<StatsForm>({ impressions:'', clicks:'', conversions:'', budget_spent:'', ctr:'', cpc:'', status:'' })
+  const [statsForm,  setStatsForm]  = useState<StatsForm>({ impressions:'', clicks:'', conversions:'', budget_spent:'', ctr:'', cpc:'', status:'', daily_budget:'' })
   const [statsSaving,setStatsSaving]= useState(false)
   const [statsErr,   setStatsErr]   = useState('')
 
   const [confirmDel, setConfirmDel] = useState<Campaign | null>(null)
   const [deleting,   setDeleting]   = useState(false)
 
-  const [syncing,    setSyncing]    = useState(false)
-  const [syncResult, setSyncResult] = useState<{ updated: number; created: number } | null>(null)
+  const [syncing,       setSyncing]       = useState(false)
+  const [syncResult,    setSyncResult]    = useState<{ updated: number; created: number } | null>(null)
+  const [syncingToday,  setSyncingToday]  = useState(false)
+
+  const handleSyncToday = async () => {
+    setSyncingToday(true); setSyncResult(null)
+    try {
+      const res  = await fetch('/api/cron/hourly-sync')
+      const data = await res.json()
+      if (!res.ok) throw new Error(data.error ?? 'Xatolik')
+      const fresh = await getCampaigns()
+      setCampaigns(fresh)
+      setSyncResult({ updated: data.updated ?? 0, created: 0 })
+    } catch (err: any) {
+      alert(`Bugungi sync xatosi: ${err.message}`)
+    } finally { setSyncingToday(false) }
+  }
 
   const [showSendReport,   setShowSendReport]   = useState(false)
   const [sendReportDate,   setSendReportDate]   = useState('')
@@ -211,6 +249,7 @@ export default function CampaignsPage() {
       ctr:          String(camp.ctr          ?? ''),
       cpc:          String(camp.cpc          ?? ''),
       status:       camp.status,
+      daily_budget: String(camp.daily_budget ?? ''),
     })
     setStatsErr('')
   }
@@ -229,7 +268,8 @@ export default function CampaignsPage() {
         ctr:          statsForm.ctr ? Number(statsForm.ctr) : undefined,
         cpc:          statsForm.cpc ? Number(statsForm.cpc) : undefined,
         status:       statsForm.status as any,
-      })
+        daily_budget: statsForm.daily_budget ? Number(statsForm.daily_budget) : 0,
+      } as any)
       setCampaigns(prev => prev.map(c => c.id === updated.id ? updated : c))
       setEditTarget(null)
     } catch (err: any) { setStatsErr(err?.message ?? 'Saqlashda xatolik') }
@@ -385,6 +425,16 @@ export default function CampaignsPage() {
               ...(showInsights ? { background: isDark ? '#1E1533' : '#e6f1fb', color: isDark ? '#A78BFA' : '#185fa5', borderColor: '#185fa5' } : {}) }}
           >
             <BarChart2 size={13} /> Davriy tahlil
+          </button>
+          <button
+            className={s.btn}
+            onClick={handleSyncToday}
+            disabled={syncingToday}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#0f6e56', borderColor: '#6ee7b7' }}
+            title="Bugungi kun statistikasini yangilaydi (today_* ustunlar)"
+          >
+            <RefreshCw size={13} style={{ animation: syncingToday ? 'spin 1s linear infinite' : 'none' }} />
+            {syncingToday ? 'Yangilanmoqda...' : 'Bugungi sync'}
           </button>
           <button
             className={s.btn}
@@ -606,125 +656,162 @@ export default function CampaignsPage() {
       ) : (
         <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           {filtered.map(camp => {
-            const pm = PLATFORM_META[camp.platform ?? '']
-            const sm = STATUS_META[camp.status]
-            const spentPct = camp.budget_total ? Math.min(Math.round((camp.budget_spent / camp.budget_total) * 100), 100) : 0
+            const pm     = PLATFORM_META[camp.platform ?? '']
+            const sm     = STATUS_META[camp.status]
             const client = (camp as any).client as Client | undefined
+            const obj    = fmtObjective(camp.objective)
+
+            // Second metric: leads for lead campaigns, clicks otherwise
+            const isLeadCamp = ['OUTCOME_LEADS','LEAD_GENERATION','CONVERSIONS']
+              .includes((camp.objective ?? '').toUpperCase())
+            const metric2 = isLeadCamp
+              ? { label: 'Lead', value: camp.today_leads ?? 0, color: '#0f6e56' }
+              : { label: 'Bosishlar', value: camp.today_clicks ?? 0, color: '#185fa5' }
+
+            // Budget bar
+            const hasDailyBudget = (camp.daily_budget ?? 0) > 0
+            const barSpend  = camp.today_spend ?? 0
+            const barTotal  = hasDailyBudget ? (camp.daily_budget ?? 0) : (camp.budget_total ?? 0)
+            const barLabel  = hasDailyBudget ? 'Kunlik budjet' : 'Jami budjet'
+            const barStored = hasDailyBudget ? 0 : (camp.budget_spent ?? 0)
+            const barUsed   = hasDailyBudget ? barSpend : barStored
+            const barPct    = barTotal > 0 ? Math.min(Math.round((barUsed / barTotal) * 100), 100) : 0
+
+            // Last synced label
+            const syncedLabel = (() => {
+              if (!camp.last_synced_at) return null
+              const d = new Date(camp.last_synced_at)
+              const pad = (n: number) => String(n).padStart(2, '0')
+              return `🔄 ${pad(d.getHours())}:${pad(d.getMinutes())}`
+            })()
 
             return (
               <div key={camp.id} style={{
                 background: C.card, border: `1px solid ${C.border}`,
-                borderRadius: 14, padding: '16px 20px',
-                transition: 'box-shadow 0.2s',
+                borderRadius: 14, padding: '16px 18px',
+                display: 'flex', flexDirection: 'column', gap: 12,
               }}>
-                {/* Top row */}
-                <div className={s.cardTopRow}>
-                  {/* Platform icon */}
-                  <div style={{
-                    width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                    background: pm ? `${pm.color}18` : C.statBg,
-                    color: pm?.color ?? C.sub,
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  }}>
-                    {pm ? pm.icon : <TrendingUp size={16} />}
-                  </div>
-
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <div style={{ fontSize: 15, fontWeight: 600, color: C.text }}>{camp.name}</div>
-                      <span className={`${s.badge} ${s[sm.badge as keyof typeof s]}`}>{sm.label}</span>
-                      {pm && <span style={{ fontSize: 11, color: pm.color, fontWeight: 600 }}>{pm.label}</span>}
-                    </div>
-                    <div style={{ display: 'flex', gap: 10, marginTop: 4, flexWrap: 'wrap', alignItems: 'center' }}>
-                      {client && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                          <div style={{
-                            width: 18, height: 18, borderRadius: 5,
-                            background: isDark ? '#1E1533' : '#e6f1fb',
-                            color: isDark ? '#A78BFA' : '#185fa5',
-                            display: 'flex', alignItems: 'center', justifyContent: 'center',
-                            fontSize: 8, fontWeight: 700, overflow: 'hidden', flexShrink: 0,
-                          }}>
-                            {client.logo_url
-                              ? <img src={client.logo_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                              : client.company_name.slice(0, 2).toUpperCase()}
-                          </div>
-                          <span style={{ fontSize: 12, color: C.sub }}>{client.company_name}</span>
-                        </div>
-                      )}
-                      {camp.objective && <span style={{ fontSize: 12, color: C.sub }}>• {camp.objective}</span>}
-                      {(camp.start_date || camp.end_date) && (
-                        <span style={{ fontSize: 11, color: C.sub }}>
-                          📅 {fmtDate(camp.start_date)} — {fmtDate(camp.end_date)}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className={s.cardActions}>
-                    {camp.facebook_campaign_id && (
-                      <button
-                        onClick={() => openReportModal(camp)}
-                        title={camp.daily_report ? `Guruh: ${camp.telegram_chat_id}` : 'Kunlik hisobotga qo\'shish'}
-                        style={{
-                          padding: '5px 10px', fontSize: 11, fontWeight: 600,
-                          borderRadius: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
-                          border: `1px solid ${camp.daily_report ? '#0f6e56' : C.border}`,
-                          background: camp.daily_report ? (isDark ? '#0f6e5620' : '#d1fae5') : 'none',
-                          color: camp.daily_report ? '#0f6e56' : C.sub,
-                          fontFamily: 'inherit',
-                        }}
-                      >
-                        📊 {camp.daily_report ? 'Hisobotda' : 'Hisobot'}
-                      </button>
-                    )}
-                    <button className={s.btn} style={{ padding: '5px 10px', fontSize: 12 }} onClick={() => openEdit(camp)}>
-                      <Edit2 size={12} /> Statistika
-                    </button>
-                    <button
-                      onClick={() => setConfirmDel(camp)}
-                      style={{ background: 'none', border: `1px solid ${C.border}`, borderRadius: 7, padding: '5px 8px', cursor: 'pointer', color: C.sub, display: 'flex', alignItems: 'center' }}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
+                {/* ── Nom (2 qator) ── */}
+                <div style={{
+                  fontSize: 15, fontWeight: 700, color: C.text, lineHeight: 1.4,
+                  display: '-webkit-box', WebkitLineClamp: 2,
+                  WebkitBoxOrient: 'vertical', overflow: 'hidden',
+                }}>
+                  {camp.name}
                 </div>
 
-                {/* Metrics grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(100px, 1fr))', gap: 8, marginBottom: 12 }}>
-                  {[
-                    { label: "Ko'rishlar",    value: fmtNum(camp.impressions),  icon: <Eye size={11} />,              color: '#534ab7' },
-                    { label: 'Bosishlar',     value: fmtNum(camp.clicks),       icon: <MousePointerClick size={11} />, color: '#185fa5' },
-                    { label: 'Konversiyalar', value: fmtNum(camp.conversions),  icon: <Target size={11} />,           color: '#0f6e56' },
-                    { label: 'CTR',           value: camp.ctr ? `${camp.ctr}%` : '—', icon: <BarChart2 size={11} />, color: '#854f0b' },
-                  ].map(({ label, value, icon, color }) => (
-                    <div key={label} style={{ background: C.statBg, borderRadius: 8, padding: '8px 10px' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 4, color: C.sub, marginBottom: 4 }}>
-                        {icon}<span style={{ fontSize: 10 }}>{label}</span>
+                {/* ── Platform · Maqsad ── */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  {pm && (
+                    <span style={{ color: pm.color, display: 'flex', alignItems: 'center' }}>
+                      {pm.icon}
+                    </span>
+                  )}
+                  <span style={{ fontSize: 12, fontWeight: 600, color: pm?.color ?? C.sub }}>
+                    {pm?.label ?? 'Platforma'}
+                  </span>
+                  {obj && <>
+                    <span style={{ color: C.border }}>·</span>
+                    <span style={{ fontSize: 12, color: C.sub }}>{obj}</span>
+                  </>}
+                </div>
+
+                {/* ── Holat · Kompaniya · Sync vaqti ── */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                  <span className={`${s.badge} ${s[sm.badge as keyof typeof s]}`}>{sm.label}</span>
+                  {client && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, minWidth: 0 }}>
+                      <div style={{
+                        width: 16, height: 16, borderRadius: 4, flexShrink: 0,
+                        background: isDark ? '#1E1533' : '#e6f1fb',
+                        color: isDark ? '#A78BFA' : '#185fa5',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        fontSize: 7, fontWeight: 700, overflow: 'hidden',
+                      }}>
+                        {client.logo_url
+                          ? <img src={client.logo_url} alt="" style={{ width:'100%', height:'100%', objectFit:'cover' }} />
+                          : client.company_name.slice(0, 2).toUpperCase()}
                       </div>
-                      <div style={{ fontSize: 16, fontWeight: 700, color }}>{value}</div>
+                      <span style={{
+                        fontSize: 11, color: C.sub, whiteSpace: 'nowrap',
+                        overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: 140,
+                      }}>{client.company_name}</span>
+                    </div>
+                  )}
+                  {syncedLabel && (
+                    <span style={{ fontSize: 10, color: C.sub, marginLeft: 'auto' }}>{syncedLabel}</span>
+                  )}
+                </div>
+
+                {/* ── Bugungi statistikalar ── */}
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: 8 }}>
+                  {[
+                    { label: "Ko'rishlar", value: fmtNum(camp.today_impressions ?? 0), color: '#534ab7' },
+                    { label: metric2.label, value: fmtNum(metric2.value),              color: metric2.color },
+                    { label: 'Bugungi $',  value: `$${(camp.today_spend ?? 0).toFixed(0)}`, color: '#854f0b' },
+                    { label: 'CPL',        value: (camp.today_cpl ?? 0) > 0 ? `$${camp.today_cpl}` : '—', color: '#185fa5' },
+                  ].map(({ label, value, color }) => (
+                    <div key={label} style={{ background: C.statBg, borderRadius: 8, padding: '8px 6px', textAlign: 'center' }}>
+                      <div style={{ fontSize: 9, color: C.sub, marginBottom: 3, textTransform: 'uppercase', letterSpacing: '0.3px' }}>{label}</div>
+                      <div style={{ fontSize: 15, fontWeight: 700, color }}>{value}</div>
                     </div>
                   ))}
                 </div>
 
-                {/* Budget progress */}
-                {camp.budget_total ? (
+                {/* ── Budjet bar ── */}
+                {barTotal > 0 && (
                   <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, color: C.sub, marginBottom: 5 }}>
-                      <span>Budjet sarflandi</span>
+                      <span>{barLabel}</span>
                       <span style={{ fontWeight: 600, color: C.text }}>
-                        ${fmtNum(camp.budget_spent)} / ${fmtNum(camp.budget_total)} ({spentPct}%)
+                        ${barUsed.toFixed(0)} / ${fmtNum(barTotal)}
+                        <span style={{ color: barPct >= 90 ? '#dc2626' : barPct >= 70 ? '#d97706' : C.sub, marginLeft: 4 }}>
+                          ({barPct}%)
+                        </span>
                       </span>
                     </div>
                     <div style={{ height: 5, background: C.barBg, borderRadius: 3, overflow: 'hidden' }}>
                       <div style={{
-                        height: '100%', borderRadius: 3,
-                        background: spentPct >= 90 ? '#dc2626' : spentPct >= 70 ? '#d97706' : '#185fa5',
-                        width: `${spentPct}%`, transition: 'width 0.4s ease',
+                        height: '100%', borderRadius: 3, transition: 'width 0.4s ease',
+                        background: barPct >= 90 ? '#dc2626' : barPct >= 70 ? '#d97706' : '#185fa5',
+                        width: `${barPct}%`,
                       }} />
                     </div>
                   </div>
-                ) : null}
+                )}
+
+                {/* ── Tugmalar (pastda, markazda) ── */}
+                <div style={{ display: 'flex', justifyContent: 'center', gap: 8, paddingTop: 4, borderTop: `1px solid ${C.border}`, flexWrap: 'wrap' }}>
+                  {camp.facebook_campaign_id && (
+                    <button
+                      onClick={() => openReportModal(camp)}
+                      title={camp.daily_report ? `Guruh: ${camp.telegram_chat_id}` : 'Kunlik hisobotga qo\'shish'}
+                      style={{
+                        padding: '6px 12px', fontSize: 11, fontWeight: 600,
+                        borderRadius: 7, cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4,
+                        border: `1px solid ${camp.daily_report ? '#0f6e56' : C.border}`,
+                        background: camp.daily_report ? (isDark ? '#0f6e5620' : '#d1fae5') : 'none',
+                        color: camp.daily_report ? '#0f6e56' : C.sub,
+                        fontFamily: 'inherit',
+                      }}
+                    >
+                      📊 {camp.daily_report ? 'Hisobotda' : 'Hisobot'}
+                    </button>
+                  )}
+                  <button className={s.btn} style={{ padding: '6px 14px', fontSize: 12 }} onClick={() => openEdit(camp)}>
+                    <Edit2 size={12} /> Statistika
+                  </button>
+                  <button
+                    onClick={() => setConfirmDel(camp)}
+                    style={{
+                      background: 'none', border: `1px solid ${C.border}`,
+                      borderRadius: 7, padding: '6px 10px', cursor: 'pointer',
+                      color: C.sub, display: 'flex', alignItems: 'center',
+                    }}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               </div>
             )
           })}
@@ -850,6 +937,17 @@ export default function CampaignsPage() {
                         value={statsForm[key]} onChange={e => setStatsForm(p => ({ ...p, [key]: e.target.value }))} />
                     </div>
                   ))}
+                </div>
+                <div className={s.formGroup} style={{ marginBottom: 0 }}>
+                  <label className={s.label}>Kunlik budjet ($)</label>
+                  <input
+                    style={inputStyle} type="number" min="0" step="any" placeholder="0"
+                    value={statsForm.daily_budget}
+                    onChange={e => setStatsForm(p => ({ ...p, daily_budget: e.target.value }))}
+                  />
+                  <div style={{ fontSize: 11, color: C.sub, marginTop: 3 }}>
+                    Kartochkadagi budjet barida ishlatiladi. 0 bo'lsa — jami budjetga nisbatan ko'rsatiladi.
+                  </div>
                 </div>
                 <div className={s.formGroup} style={{ marginBottom: 0 }}>
                   <label className={s.label}>Status</label>

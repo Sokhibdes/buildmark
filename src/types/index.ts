@@ -142,6 +142,13 @@ export interface Campaign {
   facebook_campaign_id?: string
   daily_report?: boolean
   telegram_chat_id?: string
+  today_impressions?: number
+  today_clicks?: number
+  today_leads?: number
+  today_spend?: number
+  today_cpl?: number
+  daily_budget?: number
+  last_synced_at?: string
   created_by?: string
   created_at: string
   client?: Client
