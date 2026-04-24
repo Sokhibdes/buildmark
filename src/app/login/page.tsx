@@ -28,8 +28,22 @@ export default function LoginPage() {
       return
     }
 
-    router.replace('/admin/dashboard')
-    router.refresh()
+    const { data: profile } = await supabase
+      .from('profiles').select('role').eq('id', data.user.id).single()
+
+    if (!profile) {
+      await supabase.auth.signOut()
+      setError("Foydalanuvchi ma'lumotlari topilmadi")
+      setLoading(false)
+      return
+    }
+
+    if (profile.role === 'client') {
+      router.replace('/client/portal')
+    } else {
+      router.replace('/admin/dashboard')
+      router.refresh()
+    }
     setLoading(false)
   }
 

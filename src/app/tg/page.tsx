@@ -19,20 +19,20 @@ export default function TelegramEntryPage() {
 
     const initData: string = tg.initData ?? ''
 
+    if (!initData) {
+      router.replace('/tg/link')
+      return
+    }
+
     ;(async () => {
       const supabase = createClient()
 
-      // Agar session allaqachon mavjud bo'lsa — to'g'ri yo'naltirish
+      // Mavjud session bo'lsa — to'g'ri yo'naltirish
       const { data: { session } } = await supabase.auth.getSession()
       if (session) {
         const { data: profile } = await supabase
           .from('profiles').select('role').eq('id', session.user.id).single()
         router.replace(profile?.role === 'client' ? '/client/portal' : '/admin/dashboard')
-        return
-      }
-
-      if (!initData) {
-        router.replace('/tg/link')
         return
       }
 

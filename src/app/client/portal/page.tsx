@@ -158,13 +158,17 @@ function PortalContent() {
     let interval: ReturnType<typeof setInterval> | null = null
 
     supabase.auth.getSession().then(async ({ data: { session } }) => {
-      if (!session) { router.push('/client/login'); return }
+      if (!session) {
+        const isTelegram = !!(window as any).Telegram?.WebApp?.initData
+        router.push(isTelegram ? '/tg' : '/login')
+        return
+      }
 
       const { data: profile } = await supabase
         .from('profiles').select('role').eq('id', session.user.id).single()
       if (profile?.role !== 'client') {
         await supabase.auth.signOut()
-        router.push('/client/login')
+        router.push('/login')
         return
       }
 
@@ -221,7 +225,8 @@ function PortalContent() {
   const handleLogout = async () => {
     const supabase = createClient()
     await supabase.auth.signOut()
-    router.push('/client/login')
+    const isTelegram = !!(window as any).Telegram?.WebApp?.initData
+    router.push(isTelegram ? '/tg' : '/login')
   }
 
   const selectCompany = async (selected: Client) => {
